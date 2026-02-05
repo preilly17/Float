@@ -1,0 +1,70 @@
+Task: Make all “search” pages visually consistent across the app WITHOUT breaking any functionality.
+
+Context:
+Search UIs exist for Restaurants, Activities, Hotels/Stays, Flights (and any other search-like forms).
+Right now they look inconsistent: different spacing, typography, extra helper text, mismatched button styles/colors, inconsistent icons usage, different date picker patterns, inconsistent “secondary actions” (external search links), etc.
+
+Hard rule:
+DO NOT change any business logic, API calls, query params, state shape, validation rules, or backend endpoints.
+This is a UI/UX refactor only. Preserve existing behavior and data flow.
+
+Approach (must follow):
+1) Create a shared “SearchFormLayout” design system for all search pages:
+   - A shared container/card layout with:
+     - Title (H2)
+     - Subtitle (1 line max)
+     - Optional helper text area (same style everywhere)
+     - Form grid (responsive: 2 columns desktop, 1 column mobile)
+     - Primary CTA row (right-aligned primary button)
+     - Secondary actions row (external links) styled consistently
+   - Use the same padding, border radius, background, and shadow across all search pages.
+
+2) Create shared UI components used by all search pages:
+   - <SearchHeader title subtitle />
+   - <FormGrid> and <FormRow>
+   - <PrimaryButton> and <SecondaryButton> (one consistent gradient or one consistent solid—pick ONE and apply everywhere)
+   - <FieldLabel>, <HelperText>
+   - <DateRangeField> and <DateTimeField> wrappers so date selection UX is consistent
+   - <ExternalLinkButtons> for “Search on X” type buttons (same style + icon usage)
+   - Make icons consistent: either always show leading icon for CTAs or never. Choose one standard.
+
+3) Normalize form conventions across pages:
+   - Required fields show asterisk and same label style
+   - Same input heights, same border color, same focus ring
+   - Same spacing between sections (e.g. 24px)
+   - Remove unnecessary/duplicative helper text or convert to tooltips/info blocks with the same component
+   - Align CTA placement: Primary “Search” or “Search Restaurants/Hotels/Flights” on bottom right
+   - Secondary actions (OpenTable/Resy/Viator/etc.) live under the form in a consistent “Book on trusted platforms” panel
+
+4) Dates consistency (critical):
+   - Choose ONE date UX pattern and apply across:
+     - For Activities/Hotels: Date range picker
+     - For Restaurants: single date + time (use same date picker component + time select)
+     - For Flights: depart/return (date pickers) consistent styling and calendar behavior
+   - Do NOT alter the underlying stored values—only wrap and style the existing inputs.
+
+5) Do NOT break functionality:
+   - Keep existing onChange handlers, submit handlers, form libraries (react-hook-form, etc.) intact.
+   - If you replace markup, wire it to the same state/props.
+   - Run through each search page and confirm searches still trigger exactly as before.
+
+Deliverables:
+A) Add shared components in a /components/search (or similar) folder.
+B) Refactor these pages to use the shared layout:
+   - Restaurants search page
+   - Activities discover/search page
+   - Hotels/Stays search page
+   - Flights search page
+   - Any other similar search pages found in codebase
+C) Provide before/after notes listing:
+   - Which components were introduced
+   - Which pages were migrated
+   - Confirmation that API calls and behaviors are unchanged
+
+Acceptance checklist:
+- All search pages share the same header styling, spacing, and container.
+- All primary CTA buttons look identical across pages.
+- All inputs share the same height, typography, border, and focus style.
+- All date inputs use the same calendar component styling.
+- Secondary/external platform buttons look identical across pages.
+- No changes to network requests, query params, or submit behavior.

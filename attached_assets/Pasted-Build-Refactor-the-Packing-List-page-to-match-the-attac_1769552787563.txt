@@ -1,0 +1,115 @@
+Build/Refactor the “Packing List” page to match the attached screenshot design (layout, spacing, typography, and pastel gradient styling). Preserve current manual add functionality, but enforce correct privacy + per-user completion behavior.
+
+UI / Layout (match screenshot)
+- Left sidebar navigation already exists.
+- Main card container:
+  - Title row: “Packing Essentials” + a small badge like “1/4 packed”
+  - Top-right: toggle button “Hide Completed”
+  - Progress bar row:
+    - Label “Progress”
+    - Horizontal progress bar
+    - Percent number on the right (e.g., 25%)
+- Add item row:
+  - Text input: “Add a packing item…”
+  - Dropdown 1: category (default “General”)
+  - Dropdown 2: scope/type (default “Personal”; options: Personal, Group)
+  - Plus button on the far right to add
+- Two sections stacked:
+  1) Personal Items
+     - Header shows “Personal Items” and a small badge “You: X/Y packed”
+     - Items grouped by category with colored pill labels (e.g., Clothing, Toiletries)
+  2) Group Items
+     - Header shows “Group Items” and a small badge “You: X/Y handled”
+     - Items grouped by category with colored pill labels (e.g., General, Documents)
+- Item row styling:
+  - Left: circular checkbox
+  - Center: item name
+  - If completed, show strikethrough and a small “✓ Packed” (or “✓ Handled” for group) sublabel
+  - Right: show a small “person” label:
+    - For personal items: show owner name (e.g., “Alec”)
+    - For group items: show “Suggested by <name>”
+  - Rightmost: trash icon button to delete item (only allowed for creator OR trip owner/admin)
+- Hide Completed:
+  - When enabled, hide completed items in BOTH sections for the current user only (do not delete).
+
+Core behavior / rules
+A) Personal Items (private)
+- Personal items are visible ONLY to the current user.
+- Other trip members must never see any of my personal items.
+- Checking a personal item marks it complete for me.
+- Completion does not remove the item; it stays visible unless “Hide Completed” is enabled.
+
+B) Group Items (shared list, but completion is per-user)
+- Group items are visible to all trip members as shared “don’t forget” reminders (passport, cash, etc.).
+- IMPORTANT: When any user checks off a group item, it only affects THAT user’s completion state.
+  - It must NOT mark the item complete for other members.
+  - It must NOT change the shared group item record itself.
+- For group items, display an optional aggregate progress indicator per item:
+  - e.g., “Group: 0/3 handled” where 3 = number of trip members, and the numerator counts how many members have checked it off.
+  - This is display-only aggregation; each user’s checkbox is still independent.
+- Group items should say “Handled” (or “Packed”)—choose one and use consistently.
+
+C) Progress counts
+- Overall top badge “X/Y packed” and % should reflect the current user’s completion across:
+  - All personal items (mine)
+  - All group items (my per-user handled state)
+- Personal section badge: “You: X/Y packed” based on my personal items only.
+- Group section badge: “You: X/Y handled” based on my handled state across group items.
+- Hide Completed should not affect the denominator (optional), but the UI should remain consistent; if it does change counts, do it intentionally and consistently.
+
+Data model / implementation requirements (to avoid bugs)
+You must model “Group item exists” separately from “User completed it”.
+
+Suggested schema (can be Prisma or similar):
+1) packing_items
+- id
+- tripId
+- scope: 'PERSONAL' | 'GROUP'
+- title
+- category (string)
+- createdByUserId
+- createdAt
+- deletedAt (optional soft delete)
+
+2) packing_item_status (per-user completion)
+- id
+- tripId
+- itemId
+- userId
+- completedAt (nullable)
+- UNIQUE(itemId, userId)
+
+Privacy enforcement:
+- For PERSONAL scope, only allow read/write where userId == current user. Easiest:
+  - Store PERSONAL items as scope=PERSONAL AND createdByUserId=current user
+  - Filter server-side so other users never receive them.
+- For GROUP scope, all members can read items, but status is per-user in packing_item_status.
+
+API behavior
+- GET packing items for trip:
+  - Return group items for trip + the current user’s personal items
+  - Include current user’s completion status for each item
+  - Include optional aggregate completedCount for group items (for “Group: X/N handled”)
+- POST create item:
+  - If scope=PERSONAL, create personal item owned by current user
+  - If scope=GROUP, create shared group item (visible to all)
+- POST toggle completion:
+  - For PERSONAL: update/create packing_item_status for current user
+  - For GROUP: update/create packing_item_status for current user only
+- DELETE item:
+  - Only creator OR trip owner/admin can delete (enforce server-side)
+  - Deleting an item removes it for everyone if GROUP, or only for owner if PERSONAL
+
+Frontend state rules
+- “Proposed/packed” UI must reflect server truth (do not fake completion in local state without persisting).
+- On add/toggle/delete, refetch or invalidate cache so Personal/Group counts and progress bar update immediately.
+
+Acceptance tests (must pass)
+1) I add a personal item -> only I can see it; other member cannot.
+2) I add a group item -> all members can see it.
+3) I check off a group item -> only my checkbox becomes checked; other members remain unchecked.
+4) Aggregate label “Group: X/N handled” increments when different users check it off.
+5) Hide Completed hides completed items for me only without deleting them.
+6) Top progress and section progress update correctly.
+
+Match the screenshot’s look closely: soft pastel gradients, rounded cards, pill category labels, subtle shadows, and clean spacing.

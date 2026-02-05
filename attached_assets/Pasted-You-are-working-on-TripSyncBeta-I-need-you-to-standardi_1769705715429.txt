@@ -1,0 +1,88 @@
+You are working on TripSyncBeta. I need you to standardize what the create-form toggle means across ALL creation flows (Activity, Restaurant, Accommodation/Stay, Flight) and fix behavior to match the definitions below. Do NOT remove any existing core functionality; only adjust logic/UI copy as needed to make behavior correct and consistent.
+
+TOGGLE MODES (single invariant across all forms)
+
+1) “Save for Me” (rename label in UI to “Schedule & Invite” if possible, because the current label is misleading)
+Meaning:
+- This is for definitive plans that should immediately be put on the sender’s calendar and optionally sent to selected trip members as an RSVP invite.
+- There is NO voting or ranking in this mode. Recipients only Accept or Decline.
+Required behavior:
+- On submit:
+  - Create a scheduled event record immediately.
+  - Automatically add it to the SENDER’S calendar (always).
+  - If the user selects recipients, create RSVP invites for those recipients.
+- Recipient flow:
+  - Recipients see an RSVP request (not a proposal).
+  - If recipient ACCEPTS → event is added to their calendar.
+  - If recipient DECLINES → it is NOT added to their calendar.
+- Visibility:
+  - This item should appear in the Calendar view as “Scheduled/Confirmed” for the sender immediately.
+  - It should NOT appear in the Proposals voting lists (Flights/Hotels/Activities/Restaurants proposals tabs).
+- UX:
+  - In this mode, show “Who’s going?” (recipient selector) and make it clear it’s an RSVP invite.
+  - The sender is implicitly included by default and cannot be removed.
+
+2) “Propose to Group”
+Meaning:
+- This is for non-final ideas/options (time/interest/price comparisons).
+- This mode supports voting/ranking/interest, and then later conversion into a scheduled plan.
+Required behavior:
+- On submit:
+  - Create a PROPOSAL record (status OPEN/PROPOSED) tied to selected trip members.
+  - It must appear in:
+    a) Recipients’ Proposals tab (their “My Proposals” and category tab),
+    b) Sender’s “My Proposals”.
+- Voting flow:
+  - Recipients can vote/rank/indicate interest.
+  - Proposals do NOT go on anyone’s calendar automatically.
+- Conversion:
+  - Proposal must have a clear “Convert to Scheduled” / “Confirm & Add to Calendar” action.
+  - On conversion:
+    - Create a scheduled event from the proposal.
+    - Add to calendar for:
+      - Either only voters who opted-in (if that’s your model), OR a selected subset at conversion time.
+    - Close the proposal (status CONFIRMED/CLOSED) and remove it from OPEN proposal lists.
+
+IMPLEMENTATION TASKS
+A) Audit current create handlers for Flights/Hotels/Restaurants/Activities:
+- Ensure Save/Schedule mode creates a scheduled event + RSVP invites, not a proposal.
+- Ensure Propose mode creates a proposal record and is fetchable by recipients.
+
+B) Fix proposal fetching and filtering so that:
+- Flight proposals created by the user and sent to others ALWAYS show in “My Proposals”.
+- Proposals assigned to recipients ALWAYS show in their Proposals tab.
+- Do not hide proposals due to creator filtering unless explicitly intended and documented.
+
+C) Add/verify these fields in the data model if missing (or map to existing equivalents):
+- type: FLIGHT | STAY | RESTAURANT | ACTIVITY
+- mode: RSVP | PROPOSAL (or status+scope that cleanly distinguishes)
+- status: SCHEDULED/CONFIRMED vs OPEN/PROPOSED vs CLOSED/CANCELED
+- recipients: userIds (for invites or proposal assignment)
+- createdBy, tripId
+- calendarEventId or linkage for scheduled items
+
+D) UI/Copy:
+- If you keep “Save for Me” text, add helper text that it actually means “Schedule & Invite”.
+- Prefer renaming to “Schedule & Invite” and “Propose to Group” for clarity.
+
+ACCEPTANCE TESTS (must pass)
+1) Create Flight in Schedule & Invite mode, select 2 members:
+- Sender immediately sees it on calendar.
+- Both members receive RSVP.
+- Accept adds to their calendar; decline does not.
+- Nothing shows in proposal lists.
+
+2) Create Flight in Propose mode, select 2 members:
+- Both members see it in Proposals → Flights category and My Proposals.
+- Sender sees it in My Proposals.
+- Not on calendar.
+- Convert to Scheduled adds to calendars per rule and closes proposal.
+
+3) Manual creation must still work:
+- Creating a manual flight/stay/etc must always persist correctly; only the mode changes how it’s distributed and whether it schedules immediately.
+
+Start by locating the submit handlers and API endpoints used for:
+- creating proposals,
+- creating scheduled events / RSVPs,
+- fetching proposals by trip+user.
+Then implement the above invariants with minimal changes.

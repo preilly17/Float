@@ -1,0 +1,69 @@
+Goal: When a user manually adds a flight and selects Propose to Group, it becomes an OPEN flight proposal for selected members to compare/rank. Only the proposal creator can convert the winning flight to scheduled. Conversion adds it to everyone’s calendar.
+
+A) Creation behavior (Propose to Group)
+
+In Add Flight Manually, when toggle = Propose to Group:
+
+Create a flight proposal with status OPEN (or your equivalent).
+
+It must appear for:
+
+Invitees: Proposals → Flights
+
+Creator: My Proposals (creator must be able to manage/convert it)
+
+Ensure the proposal is delivered only to the selected members.
+
+B) Voting behavior (Ranking)
+
+For flight proposals:
+
+Invitees can rank flight options (price/time/airline tradeoffs).
+
+Store ranking per-user per-trip using your existing proposal ranking mechanism (do not reinvent).
+
+C) Conversion behavior (creator-only)
+
+Only the proposal creator can see Convert to Scheduled / Book this flight.
+
+Other members do not see convert.
+
+On convert:
+
+Mark proposal as CLOSED/CONFIRMED/CONVERTED.
+
+Create the scheduled flight item.
+
+Create calendar events for:
+
+creator
+
+every member included in the proposal audience (use selected members as source of truth).
+
+Remove it from active proposal lists (should not stay OPEN).
+
+D) Post-conversion restrictions
+
+After conversion:
+
+Scheduled flight behaves like a scheduled plan: no voting, no ranking, no proposal actions.
+
+Proposal becomes read-only/archived if still visible anywhere.
+
+E) Constraints / do-not-break list
+
+Don’t touch accommodations/activity/restaurant logic here.
+
+Don’t break the existing proposal status filters (OPEN vs CONFIRMED). If flight proposals are disappearing, fix the status mapping so OPEN stays visible until conversion.
+
+F) Acceptance tests
+
+Manual flight + Propose:
+
+Invitees see it under Flights proposals and can rank.
+
+Creator sees it under My Proposals and can convert.
+
+Non-creators cannot convert.
+
+After conversion, it appears on everyone’s Calendar and is no longer an OPEN proposal.

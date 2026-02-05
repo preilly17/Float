@@ -1,0 +1,41 @@
+TASK: Reorder the fields in the “Create an activity” modal UI ONLY. Do NOT change any existing behavior, validation, API payloads, default values, or state logic. This is a layout/ordering change only.
+
+CURRENT CONTEXT:
+- The form has a toggle at the top: “Schedule & Invite” (aka Save for Me) vs “Propose to Group”.
+- All existing fields and features must remain exactly as-is (required fields still required, RSVP/proposal logic unchanged, who’s going selection unchanged, cost/max participants unchanged, etc.).
+- Keep all current hooks/state names, form libs (react-hook-form/zod/etc.), and submit handlers intact.
+
+NEW REQUIRED VISUAL ORDER (top → bottom):
+1) Toggle for Scheduled vs Proposed (leave exactly as-is)
+2) Activity Name
+3) Date & Start Time (same row if it already is; keep same inputs/validators)
+4) End Time (optional)
+5) Location
+6) Category
+7) Description (optional)
+8) Cost Per Person (optional)
+9) Who’s Going (member selector)
+
+IMPLEMENTATION INSTRUCTIONS:
+1) Find the Activity creation modal/component (likely something like:
+   - client/src/components/modals/CreateActivityModal.tsx
+   - client/src/components/activities/ActivityForm.tsx
+   - client/src/pages/calendar/* or similar)
+2) Do NOT rewrite the form logic. Only move the JSX/markup blocks to match the order above.
+   - Do not rename fields.
+   - Do not change form registration keys (e.g., “name”, “date”, “startTime”, etc.).
+   - Do not change conditional rendering rules tied to the toggle (scheduled vs proposed). If some fields currently show/hide by mode, keep that exact behavior—just move their position when visible.
+3) Keep “Trip dates: …” helper text with the Date field (same as current).
+4) Keep the submit button and footer where it currently lives.
+5) Preserve spacing/styling (same components, same classes). If there’s a grid layout, just reorder within that layout without changing styling tokens.
+6) Ensure keyboard tab order matches the new visual order.
+
+ACCEPTANCE CRITERIA:
+- Submitting in either mode produces the exact same payload as before (no key changes, no missing fields).
+- Required/optional validations behave exactly the same.
+- “Who’s going” selection and RSVP/proposal flow behaves exactly the same.
+- Only the field order in the UI changes.
+
+DELIVERABLE:
+- Commit/change only the minimal code needed to reorder the form sections.
+- After changes, show me the updated component diff (or paste the final component file) so I can verify ordering.

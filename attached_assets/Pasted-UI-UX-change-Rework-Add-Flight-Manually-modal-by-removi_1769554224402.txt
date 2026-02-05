@@ -1,0 +1,46 @@
+UI/UX change: Rework “Add Flight Manually” modal by removing fields:
+- Seat Class
+- Flight Type
+- Booking Reference
+
+Requirements:
+1) In the “Add Flight Manually” modal UI:
+   - Remove the Seat Class dropdown entirely.
+   - Remove the Flight Type dropdown entirely.
+   - Remove the Booking Reference input entirely.
+2) Do NOT break manual flight creation:
+   - The flight creation request must still succeed even if backend currently expects these fields.
+   - Ensure the payload sent to the backend is valid and consistent.
+
+Implementation details:
+A) Frontend form:
+- Update the form schema / validation (zod/yup/whatever) to remove these fields.
+- Remove them from defaultValues/state and from any submit transformation logic.
+- Adjust layout so remaining fields look balanced (2-column grid still fine; remove empty gaps; keep spacing consistent).
+- Ensure required fields remain required: flightNumber, airline, fromAirport, toAirport, departureTime, arrivalTime. Price remains optional.
+
+B) API payload compatibility:
+- If backend requires seatClass/flightType/bookingReference:
+  - Provide safe defaults server-side or client-side without exposing fields in UI:
+    - seatClass: null (preferred) or "Economy" if schema is non-nullable
+    - flightType: null or "Outbound" if schema is non-nullable
+    - bookingReference: null
+- Prefer fixing backend to make these columns nullable and optional rather than sending fake values.
+
+C) Backend (if needed):
+- Update the flight create endpoint to treat these fields as optional.
+- Update DB schema (migration) so seatClass, flightType, bookingReference are nullable / optional with no validation requirement.
+- Ensure existing records still read correctly.
+
+D) Cleanup:
+- Remove any UI display dependencies that assume these fields exist (e.g., flight card showing seat class).
+- If the flight card currently displays seat class or flight type, either remove it or display only when present.
+
+Acceptance tests:
+1) Create a manual flight using only the remaining fields -> 201 success.
+2) Flight renders correctly in “Manually Added Flights” list.
+3) No frontend validation errors about removed fields.
+4) No backend errors about missing seatClass/flightType/bookingReference.
+
+Deliverable:
+- Commit with modal UI changes + any backend migration/validation changes required to keep creates working.

@@ -1,0 +1,69 @@
+Goal: When a user creates an accommodation with Schedule & Invite, it behaves like a booked plan with RSVPs. It must not create a “proposal” for the sender, and it must not allow “propose” actions after creation.
+
+Implement the following behavior:
+
+A) Creation behavior (Schedule & Invite)
+
+In the Add Hotel/Accommodation Manually modal, when toggle = Schedule & Invite:
+
+On submit, create the accommodation record as scheduled/booked (not proposed).
+
+Immediately create a calendar event for the sender (the creator) without requiring any acceptance.
+
+Send RSVP invites to the selected trip members (the same “Who’s going?” selector logic used for scheduled activities).
+
+The sender must not see this item in Proposals (neither “My Proposals” nor “Hotels” tab).
+
+B) Invitee behavior (Accept/Deny only)
+
+For invitees, the RSVP invite should appear in their Proposals tab as an RSVP request with only:
+
+Accept
+
+Deny
+
+No ranking, no interest voting.
+
+If invitee Accepts:
+
+Create/add the accommodation calendar event for that invitee.
+
+Mark invite status accepted.
+
+If invitee Denies:
+
+Do not add to calendar.
+
+Mark invite status denied.
+
+C) Post-creation restrictions
+
+For any accommodation created via Schedule & Invite:
+
+Remove/disable any UI action that allows “Propose to group” after the fact.
+
+The accommodation card should show status Scheduled/Booked and RSVP status summary (optional), but no propose button.
+
+D) Constraints / do-not-break list
+
+Do not change existing DB schema unless absolutely necessary; prefer reusing the existing proposal/invite models if they already exist.
+
+Do not change the proposal ranking logic for hotels (that belongs to the proposal flow only).
+
+Do not change other entity flows (flights/restaurants/activities) in this prompt.
+
+E) Acceptance tests
+
+Create manual hotel with Schedule & Invite:
+
+Sender sees it on Calendar immediately.
+
+Sender does not see it in Proposals.
+
+Invitees see an RSVP item in Proposals with only Accept/Deny.
+
+Accept adds to invitee calendar; Deny does not.
+
+The hotel item does not show any “Propose” option afterward.
+
+Implementation note: Search code for the accommodation manual modal component and the handler that currently creates proposals for hotels. Split logic by toggle state so Schedule & Invite writes to “scheduled/calendar + invites” path, and proposal path stays untouched.

@@ -1,0 +1,43 @@
+Bug: Calendar “tap to add plans” hover chip does not appear on the LAST day of the trip.
+Example trip dates: March 1–15, 2026. I can hover and add plans on days 1–14, but not on the 15th. The 15th should be included (inclusive end date).
+
+Goal:
+Make the calendar’s “within trip date range” logic treat the trip end date as INCLUSIVE, and remove any timezone mismatch that makes the last day fall outside the range.
+
+What to do:
+1) Locate the logic that determines whether a calendar day cell is “inTripRange” / “isWithinTripDates” / “isTripDay” and therefore can show the hover chip (“tap to add plans”).
+   - Search for comparisons like:
+     date >= tripStart && date < tripEnd
+     isBefore(day, tripEnd)
+     day.diff(end) < 0
+     endDate exclusive checks
+   - Also check any logic that creates the calendar grid and disables days outside the trip.
+
+2) Fix the range comparison to be inclusive of the end date:
+   - Correct logic:
+     day >= startOfDay(tripStart) AND day <= endOfDay(tripEnd)
+   - If using date-fns:
+     isWithinInterval(day, { start: startOfDay(tripStart), end: endOfDay(tripEnd) })
+   - If using dayjs/moment:
+     day.isSameOrAfter(start, 'day') && day.isSameOrBefore(end, 'day')
+
+3) Normalize timezones to prevent off-by-one-day:
+   - Store and compare dates using a consistent basis:
+     - Convert tripStart/tripEnd and cellDate to local “startOfDay” in the trip’s timezone OR just compare by date-only (YYYY-MM-DD).
+   - Do NOT compare raw Date objects with times (e.g., tripEnd at 00:00) because it will exclude the end day.
+
+4) Add a regression test / console validation:
+   - Log or assert that:
+     isTripDay(Mar 1, 2026) === true
+     isTripDay(Mar 14, 2026) === true
+     isTripDay(Mar 15, 2026) === true   <-- critical
+     isTripDay(Mar 16, 2026) === false
+
+5) Ensure UI behavior:
+   - The hover chip appears on March 15 cell.
+   - Clicking March 15 opens the “add plan” modal the same as other trip days.
+
+Deliverable:
+- Identify the exact function/file where range logic was wrong.
+- Implement inclusive end-date logic with startOfDay/endOfDay normalization.
+- Confirm by showing that March 15 now allows “tap to add plans.”

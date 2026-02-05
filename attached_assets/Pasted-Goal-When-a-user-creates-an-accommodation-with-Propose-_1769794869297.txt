@@ -1,0 +1,73 @@
+Goal: When a user creates an accommodation with Propose to Group, it becomes a ranked proposal for selected members. Members can rank options. Only the proposal creator can convert the winning option to scheduled. Conversion adds to everyone’s calendar.
+
+Implement the following behavior:
+
+A) Creation behavior (Propose to Group)
+
+In the Add Hotel/Accommodation Manually modal, when toggle = Propose to Group:
+
+Create an accommodation proposal with status OPEN (or your existing equivalent).
+
+It must appear in:
+
+Invitees’ Proposals → Hotels category
+
+Creator’s My Proposals (not necessarily Hotels category if your app intentionally hides creator items there—BUT creator must be able to manage/convert it).
+
+Ensure the proposal is delivered only to the selected members (respect the member selection list).
+
+B) Voting behavior (Ranking)
+
+For accommodation proposals:
+
+Invitees can rank accommodation options inside their proposals tab.
+
+Ranking should be stored per-user per-trip (use existing hotel ranking system if it exists; do not rewrite it).
+
+C) Conversion behavior (creator-only)
+
+Only the proposal creator can see the Convert to Scheduled / Book this action.
+
+Other members must not see the convert button.
+
+When creator converts:
+
+Mark the proposal as CLOSED/CONFIRMED/CONVERTED (whichever your system uses).
+
+Create the scheduled accommodation item.
+
+Create calendar events for:
+
+creator
+
+every member included in the proposal audience (or every member who ranked it, depending on current product decision—use “selected members” as source of truth unless already implemented differently).
+
+Remove it from active proposal lists (it shouldn’t still show as “open” after conversion).
+
+D) Post-conversion restrictions
+
+After conversion:
+
+The scheduled accommodation should behave like a scheduled plan (no ranking; no proposal actions).
+
+The proposal should be read-only/archived if still visible.
+
+E) Constraints / do-not-break list
+
+Do not alter Schedule & Invite flow in this prompt.
+
+Do not change flights/restaurants/activity proposals.
+
+Reuse existing “proposal status filters” so converted/confirmed proposals don’t disappear incorrectly before conversion.
+
+F) Acceptance tests
+
+Create hotel with Propose:
+
+Invitees see it under Hotels proposals and can rank.
+
+Creator sees it under My Proposals and can convert.
+
+Non-creators cannot convert.
+
+After conversion, it appears on everyone’s Calendar and is no longer an open proposal.
