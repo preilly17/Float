@@ -10,6 +10,7 @@ import {
   COVER_PHOTO_MIN_HEIGHT,
   COVER_PHOTO_MIN_WIDTH,
 } from "@shared/constants";
+import { resolveMediaUrl } from "@/lib/media";
 
 const ACCEPTED_FILE_TYPES =
   "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
@@ -111,6 +112,7 @@ export function CoverPhotoSection({
   const [isFetchingRemote, setIsFetchingRemote] = useState(false);
   const [selectedFileInfo, setSelectedFileInfo] = useState<SelectedFileInfo | null>(null);
   const [isPhotoSearchOpen, setIsPhotoSearchOpen] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
 
   const handlePhotoSelect = useCallback(
     async (photo: PhotoResult) => {
@@ -297,7 +299,12 @@ export function CoverPhotoSection({
     });
   }, [selectedFileInfo, onPendingFileChange, updateValue]);
 
-  const previewSrc = selectedFileInfo?.previewUrl || value.coverPhotoUrl || value.coverPhotoOriginalUrl;
+  const persistedPreviewSrc = resolveMediaUrl(value.coverPhotoUrl || value.coverPhotoOriginalUrl);
+  const previewSrc = selectedFileInfo?.previewUrl || persistedPreviewSrc;
+
+  useEffect(() => {
+    setPreviewFailed(false);
+  }, [previewSrc]);
 
   return (
     <div className="space-y-2">
@@ -326,12 +333,18 @@ export function CoverPhotoSection({
       </div>
 
       <div className="relative rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800/50">
-        {previewSrc ? (
+        {previewSrc && !previewFailed ? (
           <div className="relative aspect-[16/9] w-full">
             <img
               src={previewSrc}
               alt="Cover preview"
               className="w-full h-full object-cover"
+              onError={() => {
+                console.warn("Cover preview image failed to load", {
+                  src: previewSrc,
+                });
+                setPreviewFailed(true);
+              }}
             />
             {warning && (
               <div className="absolute bottom-2 left-2 px-2 py-1 bg-amber-500/90 text-white text-xs rounded">

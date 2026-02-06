@@ -40,3 +40,23 @@ curl -i -X POST http://localhost:5000/api/trips/10/proposals/hotels \
 ```
 
 Successful responses include the CORS headers listed above. Use a different origin (e.g. `https://malicious.example.com`) to verify that disallowed origins receive a 500 response during the preflight check.
+
+## Image + photo-search production configuration
+
+This app uses a Vite frontend (`import.meta.env`) with an Express backend.
+
+### Required env vars
+
+- **Frontend (Vercel, Client Project)**
+  - `VITE_API_URL=https://<your-render-backend-domain>`
+  - Optional: `VITE_WS_URL=wss://<your-render-backend-domain>/ws`
+- **Backend (Render, API Project)**
+  - `PEXELS_API_KEY=<your-pexels-key>`
+  - `CLIENT_URL=https://<your-vercel-frontend-domain>`
+  - Optional: `CORS_ORIGINS=https://<your-vercel-frontend-domain>`
+
+### Important notes
+
+- Do **not** put `PEXELS_API_KEY` in Vercel client env vars. Pexels requests are made server-side through `/api/photos/*`.
+- `VITE_API_URL` must point to the backend in production. If omitted, browser requests default to same-origin (`/api/...`) and fail on Vercel-only frontend deployments.
+- Cover photo URLs beginning with `/uploads/...` are backend-hosted and should be resolved against `VITE_API_URL` in the client.
