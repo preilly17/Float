@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Loader2, ImageIcon, ExternalLink } from "lucide-react";
+import { buildApiUrl } from "@/lib/api";
 
 interface PhotoResult {
   id: string;
@@ -48,6 +49,7 @@ export function PhotoSearchModal({
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
+  const [imageLoadFailures, setImageLoadFailures] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -69,7 +71,7 @@ export function PhotoSearchModal({
     enabled: open,
   });
 
-  const { data, isLoading, isFetching } = useQuery<PhotoSearchResponse>({
+  const { data, isLoading, isFetching, error } = useQuery<PhotoSearchResponse>({
     queryKey: ["/api/photos/search", debouncedQuery, page],
     queryFn: async () => {
       if (!debouncedQuery || debouncedQuery.length < 2) {
@@ -79,9 +81,28 @@ export function PhotoSearchModal({
         q: debouncedQuery,
         page: String(page),
       });
-      const response = await fetch(`/api/photos/search?${params}`);
+      const endpoint = buildApiUrl(`/api/photos/search?${params.toString()}`);
+      const response = await fetch(endpoint, { credentials: "include" });
       if (!response.ok) {
-        throw new Error("Failed to search photos");
+        const bodyText = await response.text();
+        console.error("Photo search request failed", {
+          endpoint,
+          status: response.status,
+          statusText: response.statusText,
+          body: bodyText,
+        });
+        let message = "Unable to search photos right now. Please try again.";
+        try {
+          const parsed = JSON.parse(bodyText);
+          if (parsed?.message && typeof parsed.message === "string") {
+            message = parsed.message;
+          }
+        } catch {
+          if (bodyText.trim().length > 0) {
+            message = bodyText;
+          }
+        }
+        throw new Error(message);
       }
       return response.json();
     },
@@ -144,6 +165,16 @@ export function PhotoSearchModal({
                     <Skeleton key={i} className="aspect-video rounded-lg" />
                   ))}
                 </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <ImageIcon className="w-10 h-10 text-red-300 mb-3" />
+                  <p className="text-slate-700 dark:text-slate-200 font-medium">Couldn&apos;t load photos</p>
+                  <p className="text-sm text-slate-400 mt-1 max-w-md">
+                    {error instanceof Error
+                      ? error.message
+                      : "Please check your connection and API configuration."}
+                  </p>
+                </div>
               ) : data?.photos && data.photos.length > 0 ? (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -155,12 +186,25 @@ export function PhotoSearchModal({
                         className="group relative aspect-video rounded-lg overflow-hidden border-2 border-transparent hover:border-blue-500 focus:border-blue-500 focus:outline-none transition-all"
                         style={{ backgroundColor: photo.avgColor }}
                       >
-                        <img
-                          src={photo.thumbnailUrl}
-                          alt={photo.alt}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
+                        {imageLoadFailures[photo.id] ? (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-500 text-xs px-2 text-center">
+                            Image unavailable
+                          </div>
+                        ) : (
+                          <img
+                            src={photo.thumbnailUrl}
+                            alt={photo.alt}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={() => {
+                              console.warn("Photo thumbnail failed to load", {
+                                photoId: photo.id,
+                                src: photo.thumbnailUrl,
+                              });
+                              setImageLoadFailures((prev) => ({ ...prev, [photo.id]: true }));
+                            }}
+                          />
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                         <div className="absolute bottom-0 left-0 right-0 p-2 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                           <span className="truncate block">by {photo.photographer}</span>

@@ -83,7 +83,15 @@ class PexelsService {
       });
 
       if (!response.ok) {
-        console.error('Pexels API error:', response.status, response.statusText);
+        const errorBody = await response.text();
+        console.error('Pexels API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorBody,
+          query,
+          page,
+          perPage,
+        });
         return { photos: [], totalResults: 0, hasMore: false };
       }
 
@@ -123,6 +131,14 @@ class PexelsService {
       });
 
       if (!response.ok) {
+        const errorBody = await response.text();
+        console.error('Pexels curated API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorBody,
+          page,
+          perPage,
+        });
         return { photos: [], hasMore: false };
       }
 
@@ -139,14 +155,16 @@ class PexelsService {
   }
 
   private transformPhoto(photo: PexelsPhoto): PhotoSearchResult {
+    const toHttps = (url: string) => (url.startsWith('http://') ? `https://${url.slice(7)}` : url);
+
     return {
       id: String(photo.id),
-      url: photo.url,
-      thumbnailUrl: photo.src.small,
-      mediumUrl: photo.src.medium,
-      largeUrl: photo.src.large,
+      url: toHttps(photo.url),
+      thumbnailUrl: toHttps(photo.src.small),
+      mediumUrl: toHttps(photo.src.medium),
+      largeUrl: toHttps(photo.src.large),
       photographer: photo.photographer,
-      photographerUrl: photo.photographer_url,
+      photographerUrl: toHttps(photo.photographer_url),
       alt: photo.alt || `Photo by ${photo.photographer}`,
       avgColor: photo.avg_color,
       width: photo.width,
