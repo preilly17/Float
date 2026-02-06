@@ -44,14 +44,13 @@ export interface PhotoSearchResult {
 
 class PexelsService {
   private readonly baseUrl = 'https://api.pexels.com/v1';
-  private apiKey: string | null = null;
 
-  constructor() {
-    this.apiKey = process.env.PEXELS_API_KEY || null;
+  private getApiKey(): string | null {
+    return process.env.PEXELS_API_KEY || null;
   }
 
   isConfigured(): boolean {
-    return Boolean(this.apiKey);
+    return Boolean(this.getApiKey());
   }
 
   async searchPhotos(query: string, page: number = 1, perPage: number = 15): Promise<{
@@ -59,7 +58,8 @@ class PexelsService {
     totalResults: number;
     hasMore: boolean;
   }> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       console.warn('Pexels API key not configured');
       return { photos: [], totalResults: 0, hasMore: false };
     }
@@ -78,7 +78,7 @@ class PexelsService {
 
       const response = await fetch(`${this.baseUrl}/search?${params}`, {
         headers: {
-          Authorization: this.apiKey,
+          Authorization: apiKey,
         },
       });
 
@@ -114,7 +114,8 @@ class PexelsService {
     photos: PhotoSearchResult[];
     hasMore: boolean;
   }> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       return { photos: [], hasMore: false };
     }
 
@@ -126,7 +127,7 @@ class PexelsService {
 
       const response = await fetch(`${this.baseUrl}/curated?${params}`, {
         headers: {
-          Authorization: this.apiKey,
+          Authorization: apiKey,
         },
       });
 
