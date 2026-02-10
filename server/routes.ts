@@ -1234,13 +1234,6 @@ export function setupRoutes(app: Express) {
     try {
       let userId = getRequestUserId(req);
 
-      // Development bypass - use demo user
-      if (process.env.NODE_ENV === 'development' && !req.isAuthenticated()) {
-        console.log("Development mode: using demo user for trip creation");
-        userId = 'demo-user';
-        // No need to create demo user in database for development mode
-      }
-      
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -1331,11 +1324,6 @@ export function setupRoutes(app: Express) {
     try {
       let userId = getRequestUserId(req);
       
-      // Development bypass - use demo user
-      if (process.env.NODE_ENV === 'development' && !req.isAuthenticated()) {
-        userId = 'demo-user';
-      }
-      
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -1378,10 +1366,6 @@ export function setupRoutes(app: Express) {
     try {
       let userId = getRequestUserId(req);
       
-      // Development bypass - use demo user
-      if (process.env.NODE_ENV === 'development' && !req.isAuthenticated()) {
-        userId = 'demo-user';
-      }
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -6613,4 +6597,3 @@ export function setupRoutes(app: Express) {
 
   return httpServer;
 }
-
