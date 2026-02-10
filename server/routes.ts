@@ -613,8 +613,22 @@ const getErrorMessage = (error: unknown, fallback = "Unknown error"): string =>
   error instanceof Error ? error.message : fallback;
 
 function getRequestUserId(req: any): string | undefined {
-  if (req.session?.userId) {
-    return req.session.userId;
+  const normalizeUserId = (value: unknown): string | undefined => {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+
+    return undefined;
+  };
+
+  const sessionUserId = normalizeUserId(req.session?.userId);
+  if (sessionUserId) {
+    return sessionUserId;
   }
 
   const user = req.user ?? {};
@@ -632,8 +646,9 @@ function getRequestUserId(req: any): string | undefined {
   ];
 
   for (const candidate of possibleIds) {
-    if (typeof candidate === "string" && candidate.trim().length > 0) {
-      return candidate;
+    const normalizedCandidate = normalizeUserId(candidate);
+    if (normalizedCandidate) {
+      return normalizedCandidate;
     }
   }
 
