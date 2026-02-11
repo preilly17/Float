@@ -106,7 +106,7 @@ function buildSessionOptions(): SessionOptions {
   if (process.env.DATABASE_URL) {
     options.store = new PgStore({
       pool,
-      tableName: "sessions",
+      tableName: "session",
       createTableIfMissing: false,
     });
   } else {
