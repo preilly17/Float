@@ -3199,7 +3199,17 @@ export class DatabaseStorage implements IStorage {
       memberColumnRows.map(({ column_name }) => column_name),
     );
 
-    const memberColumns = ["trip_calendar_id", "user_id"];
+    const tripReferenceColumn = memberColumnNames.has("trip_calendar_id")
+      ? "trip_calendar_id"
+      : memberColumnNames.has("trip_id")
+        ? "trip_id"
+        : null;
+
+    if (!tripReferenceColumn) {
+      throw new Error("trip_members table is missing a trip reference column");
+    }
+
+    const memberColumns = [tripReferenceColumn, "user_id"];
     const valuePlaceholders = ["$1", "$2"];
     const memberValues: unknown[] = [row.id, userId];
     let placeholderIndex = 3;
@@ -3227,7 +3237,7 @@ export class DatabaseStorage implements IStorage {
       `
       INSERT INTO trip_members (${memberColumns.join(", ")})
       VALUES (${valuePlaceholders.join(", ")})
-      ON CONFLICT (trip_calendar_id, user_id) DO NOTHING
+      ON CONFLICT (${tripReferenceColumn}, user_id) DO NOTHING
       `,
       memberValues,
     );
@@ -3263,11 +3273,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserTrips(userId: string): Promise<TripWithDetails[]> {
+    const { rows: memberColumnRows } = await query<{ column_name: string }>(
+      `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'trip_members'
+      `,
+    );
+
+    const memberColumnNames = new Set(
+      memberColumnRows.map(({ column_name }) => column_name),
+    );
+
+    const tripReferenceColumn = memberColumnNames.has("trip_calendar_id")
+      ? "trip_calendar_id"
+      : memberColumnNames.has("trip_id")
+        ? "trip_id"
+        : null;
+
+    if (!tripReferenceColumn) {
+      throw new Error("trip_members table is missing a trip reference column");
+    }
+
     const { rows } = await query<{ id: number }>(
       `
       SELECT tc.id
       FROM trip_calendars tc
-      JOIN trip_members tm ON tm.trip_calendar_id = tc.id
+      JOIN trip_members tm ON tm.${tripReferenceColumn} = tc.id
       WHERE tm.user_id = $1
       ORDER BY tc.start_date ASC, tc.id ASC
       `,
@@ -3284,6 +3317,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async isTripMember(tripId: number, userId: string): Promise<boolean> {
+    const { rows: memberColumnRows } = await query<{ column_name: string }>(
+      `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'trip_members'
+      `,
+    );
+
+    const memberColumnNames = new Set(
+      memberColumnRows.map(({ column_name }) => column_name),
+    );
+
+    const tripReferenceColumn = memberColumnNames.has("trip_calendar_id")
+      ? "trip_calendar_id"
+      : memberColumnNames.has("trip_id")
+        ? "trip_id"
+        : null;
+
+    if (!tripReferenceColumn) {
+      throw new Error("trip_members table is missing a trip reference column");
+    }
+
     const { rows } = await query<{ exists: boolean }>(
       `
       SELECT EXISTS (
@@ -3293,7 +3349,7 @@ export class DatabaseStorage implements IStorage {
           AND (tc.created_by = $2 OR EXISTS (
             SELECT 1
             FROM trip_members tm
-            WHERE tm.trip_calendar_id = tc.id
+            WHERE tm.${tripReferenceColumn} = tc.id
               AND tm.user_id = $2
           ))
       ) AS exists
@@ -13643,5 +13699,4 @@ export const __testables = {
 };
 
 export const storage = new DatabaseStorage();
-
 
