@@ -1427,15 +1427,24 @@ export function setupRoutes(app: Express) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const tripId = parseInt(req.params.id);
+      const tripId = parseInt(req.params.id, 10);
+      if (Number.isNaN(tripId)) {
+        return res.status(400).json({ message: "Trip ID must be a valid number" });
+      }
+
       const trip = await storage.getTripById(tripId);
       
       if (!trip) {
         return res.status(404).json({ message: "Trip not found" });
       }
 
-      // Check if user is a member of this trip
-      const isMember = await storage.isTripMember(tripId, userId);
+      // Trip creators should always have access, even if membership lookups fail
+      // because of schema drift in trip_members.
+      let isMember = trip.createdBy === userId;
+      if (!isMember) {
+        isMember = await storage.isTripMember(tripId, userId);
+      }
+
       if (!isMember) {
         return res.status(403).json({ message: "Not a member of this trip" });
       }
