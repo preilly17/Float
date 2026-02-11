@@ -173,7 +173,24 @@ export function CreateTripModal({ open, onOpenChange }: CreateTripModalProps) {
       setPendingCoverPhotoMeta(null);
       setIsUploadingCoverPhoto(false);
 
-      setLocation(`/trip/${trip.id}`);
+      const rawTripId =
+        trip && typeof trip === "object"
+          ? (trip as { id?: unknown; trip?: { id?: unknown } }).id ??
+            (trip as { id?: unknown; trip?: { id?: unknown } }).trip?.id
+          : null;
+      const tripId = typeof rawTripId === "number" ? rawTripId : Number(rawTripId);
+
+      if (!Number.isFinite(tripId) || tripId <= 0) {
+        setFormError("Trip was created, but we couldn't open it automatically. Please refresh and try again.");
+        toast({
+          title: "Trip created",
+          description: "We created your trip, but couldn't determine its ID for navigation.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setLocation(`/trip/${tripId}`);
       onOpenChange(false);
     },
     onError: (error: unknown) => {
