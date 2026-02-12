@@ -24,7 +24,9 @@ const findRouteHandler = (
 
   for (const layer of stack) {
     if (layer?.route?.path === path && layer.route?.methods?.[method]) {
-      return layer.route.stack[0].handle as RouteHandler;
+      const routeStack = layer.route.stack;
+      // Return the last handler in the stack (the actual route handler, not middleware)
+      return routeStack[routeStack.length - 1].handle as RouteHandler;
     }
   }
 

@@ -64,11 +64,13 @@ export default function Register() {
       return response.json();
     },
     onSuccess: (data) => {
+      // Invalidate auth query so the app recognizes the new session
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({
         title: "Account created successfully!",
-        description: "You can now log in with your credentials.",
+        description: "Welcome to Float! Let's plan your first trip.",
       });
-      setLocation('/login');
+      setLocation('/');
     },
     onError: (error: any) => {
       let errorMessage = "Failed to create account. Please try again.";

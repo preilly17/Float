@@ -797,7 +797,11 @@ export function setupRoutes(app: Express) {
       }
       
       const user = await AuthService.register({ firstName, lastName, email, phoneNumber, username, password });
-      
+
+      // Auto-login: set session so user is immediately authenticated
+      req.session.userId = user.id;
+      req.session.authProvider = 'custom';
+
       // Remove password hash from response
       const { passwordHash, ...userResponse } = user;
       res.status(201).json(userResponse);
@@ -1285,7 +1289,7 @@ export function setupRoutes(app: Express) {
   });
 
   // Trip routes
-  app.post("/api/trips", async (req: any, res) => {
+  app.post("/api/trips", isAuthenticated, async (req: any, res) => {
     try {
       let userId = getRequestUserId(req);
 
