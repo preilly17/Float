@@ -16,9 +16,10 @@ export const createCorsOptions = (
       return callback(null, true);
     }
 
-    const error = new Error(
+    const error: any = new Error(
       origin ? `Not allowed by CORS: ${origin}` : "Not allowed by CORS",
     );
+    error.status = 403;
     return callback(error);
   },
   credentials: true,

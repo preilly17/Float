@@ -107,7 +107,7 @@ function buildSessionOptions(): SessionOptions {
     options.store = new PgStore({
       pool,
       tableName: "session",
-      createTableIfMissing: false,
+      createTableIfMissing: true,
     });
   } else {
     console.warn("⚠️ DATABASE_URL is not set; falling back to in-memory session storage");

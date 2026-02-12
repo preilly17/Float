@@ -67,6 +67,9 @@ const isTripsyncBetaDomain = (hostname: string): boolean =>
 const isReplitDomain = (hostname: string): boolean =>
   hostname.endsWith(".replit.dev") || hostname.endsWith(".repl.co");
 
+const isRenderDomain = (hostname: string): boolean =>
+  hostname.endsWith(".onrender.com");
+
 export type CorsState = {
   isOriginAllowed: (origin?: string | null) => boolean;
   allowedOrigins: string[];
@@ -117,6 +120,10 @@ const buildCorsState = (): CorsState => {
     }
 
     if (isReplitDomain(parsed.hostname)) {
+      return true;
+    }
+
+    if (isRenderDomain(parsed.hostname)) {
       return true;
     }
 

@@ -809,6 +809,7 @@ export function setupRoutes(app: Express) {
       req.session.save((saveErr: any) => {
         if (saveErr) {
           console.error("Session save error after registration:", saveErr);
+          return res.status(500).json({ message: "Account created but session could not be saved. Please log in." });
         }
         res.status(201).json(userResponse);
       });
@@ -829,14 +830,14 @@ export function setupRoutes(app: Express) {
 
   app.post('/api/auth/login', async (req: any, res) => {
     try {
-      const { usernameOrEmail, password } = req.body;
-      
+      const { usernameOrEmail, password } = req.body ?? {};
+
       if (!usernameOrEmail || !password) {
         return res.status(400).json({ message: "Username/email and password are required" });
       }
-      
+
       const user = await AuthService.login({ usernameOrEmail, password });
-      
+
       // Create session
       req.session.userId = user.id;
       req.session.authProvider = 'custom';
@@ -848,6 +849,7 @@ export function setupRoutes(app: Express) {
       req.session.save((saveErr: any) => {
         if (saveErr) {
           console.error("Session save error after login:", saveErr);
+          return res.status(500).json({ message: "Login succeeded but session could not be saved. Please try again." });
         }
         res.json(userResponse);
       });
@@ -861,8 +863,20 @@ export function setupRoutes(app: Express) {
       } else if (errorMessage.includes("external authentication")) {
         // Generic error to prevent account type enumeration
         res.status(401).json({ message: "Invalid credentials" });
+      } else if (
+        errorMessage.includes("ECONNREFUSED") ||
+        errorMessage.includes("ETIMEDOUT") ||
+        errorMessage.includes("connection terminated") ||
+        errorMessage.includes("Connection terminated") ||
+        errorMessage.includes("connect ECONNREFUSED") ||
+        errorMessage.includes("the database system is starting up") ||
+        errorMessage.includes("too many clients") ||
+        errorMessage.includes("remaining connection slots")
+      ) {
+        console.error("Database connection error during login:", error);
+        res.status(503).json({ message: "Service temporarily unavailable. Please try again in a moment." });
       } else {
-        res.status(500).json({ message: "Failed to log in" });
+        res.status(500).json({ message: "Failed to log in. Please try again." });
       }
     }
   });
