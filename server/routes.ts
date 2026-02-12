@@ -790,7 +790,12 @@ export function setupRoutes(app: Express) {
   // Custom auth routes
   app.post('/api/auth/register', async (req: any, res) => {
     try {
-      const { firstName, lastName, email, phoneNumber, username, password } = req.body;
+      const firstName = typeof req.body?.firstName === "string" ? req.body.firstName.trim() : "";
+      const lastName = typeof req.body?.lastName === "string" ? req.body.lastName.trim() : "";
+      const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+      const phoneNumber = typeof req.body?.phoneNumber === "string" ? req.body.phoneNumber.trim() : "";
+      const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+      const password = typeof req.body?.password === "string" ? req.body.password : "";
       
       if (!firstName || !lastName || !email || !phoneNumber || !username || !password) {
         return res.status(400).json({ message: "All fields are required" });
@@ -829,7 +834,8 @@ export function setupRoutes(app: Express) {
 
   app.post('/api/auth/login', async (req: any, res) => {
     try {
-      const { usernameOrEmail, password } = req.body;
+      const usernameOrEmail = typeof req.body?.usernameOrEmail === "string" ? req.body.usernameOrEmail.trim() : "";
+      const password = typeof req.body?.password === "string" ? req.body.password : "";
       
       if (!usernameOrEmail || !password) {
         return res.status(400).json({ message: "Username/email and password are required" });

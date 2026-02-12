@@ -17,6 +17,18 @@ export interface LoginData {
 }
 
 export class AuthService {
+  private static normalizeIdentifier(value: string): string {
+    return value.trim();
+  }
+
+  private static normalizeEmail(value: string): string {
+    return this.normalizeIdentifier(value).toLowerCase();
+  }
+
+  private static normalizeUsername(value: string): string {
+    return this.normalizeIdentifier(value);
+  }
+
   private static generateUserId(): string {
     // Generate a UUID-like string for user ID
     return 'user_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
@@ -32,14 +44,17 @@ export class AuthService {
   }
 
   static async register(data: RegisterData): Promise<User> {
+    const normalizedEmail = this.normalizeEmail(data.email);
+    const normalizedUsername = this.normalizeUsername(data.username);
+
     // Check if username already exists
-    const existingByUsername = await storage.getUserByUsername(data.username);
+    const existingByUsername = await storage.getUserByUsername(normalizedUsername);
     if (existingByUsername) {
       throw new Error('Username is already taken');
     }
 
     // Check if email already exists
-    const existingByEmail = await storage.getUserByEmail(data.email);
+    const existingByEmail = await storage.getUserByEmail(normalizedEmail);
     if (existingByEmail) {
       throw new Error('Email is already registered');
     }
@@ -51,9 +66,9 @@ export class AuthService {
     const userId = this.generateUserId();
     const user = await storage.upsertUser({
       id: userId,
-      email: data.email,
+      email: normalizedEmail,
       phoneNumber: data.phoneNumber,
-      username: data.username,
+      username: normalizedUsername,
       firstName: data.firstName,
       lastName: data.lastName,
       passwordHash,
@@ -64,15 +79,21 @@ export class AuthService {
   }
 
   static async login(data: LoginData): Promise<User> {
+    const normalizedIdentifier = this.normalizeIdentifier(data.usernameOrEmail);
+
+    if (!normalizedIdentifier) {
+      throw new Error('User not found');
+    }
+
     // Try to find user by email or username
     let user: User | undefined;
     
-    if (data.usernameOrEmail.includes('@')) {
+    if (normalizedIdentifier.includes('@')) {
       // It's an email
-      user = await storage.getUserByEmail(data.usernameOrEmail);
+      user = await storage.getUserByEmail(this.normalizeEmail(normalizedIdentifier));
     } else {
       // It's a username
-      user = await storage.getUserByUsername(data.usernameOrEmail);
+      user = await storage.getUserByUsername(this.normalizeUsername(normalizedIdentifier));
     }
 
     if (!user) {
