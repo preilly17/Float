@@ -804,7 +804,14 @@ export function setupRoutes(app: Express) {
 
       // Remove password hash from response
       const { passwordHash, ...userResponse } = user;
-      res.status(201).json(userResponse);
+
+      // Explicitly save session before responding to ensure it persists to the store
+      req.session.save((saveErr: any) => {
+        if (saveErr) {
+          console.error("Session save error after registration:", saveErr);
+        }
+        res.status(201).json(userResponse);
+      });
     } catch (error: unknown) {
       console.error("Registration error:", error);
       const errorMessage = getErrorMessage(error);
@@ -833,10 +840,17 @@ export function setupRoutes(app: Express) {
       // Create session
       req.session.userId = user.id;
       req.session.authProvider = 'custom';
-      
+
       // Remove password hash from response
       const { passwordHash, ...userResponse } = user;
-      res.json(userResponse);
+
+      // Explicitly save session before responding to ensure it persists to the store
+      req.session.save((saveErr: any) => {
+        if (saveErr) {
+          console.error("Session save error after login:", saveErr);
+        }
+        res.json(userResponse);
+      });
     } catch (error: unknown) {
       console.error("Login error:", error);
       const errorMessage = getErrorMessage(error);

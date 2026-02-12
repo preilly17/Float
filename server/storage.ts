@@ -2906,7 +2906,7 @@ export class DatabaseStorage implements IStorage {
              created_at AS "createdAt",
              updated_at AS "updatedAt"
       FROM users
-      WHERE email = $1
+      WHERE LOWER(email) = LOWER($1)
       LIMIT 1
       `,
       [email]
@@ -2928,7 +2928,7 @@ export class DatabaseStorage implements IStorage {
              created_at AS "createdAt",
              updated_at AS "updatedAt"
       FROM users
-      WHERE username = $1
+      WHERE LOWER(username) = LOWER($1)
       LIMIT 1
       `,
       [username]
