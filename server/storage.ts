@@ -2494,8 +2494,25 @@ export class DatabaseStorage implements IStorage {
       const columnNames = new Set(rows.map((row) => row.column_name));
       const hasCreatedBy = columnNames.has("created_by");
       const hasUserId = columnNames.has("user_id");
+      const hasName = columnNames.has("name");
+      const hasItem = columnNames.has("item");
+      const hasIsPacked = columnNames.has("is_packed");
+      const hasIsChecked = columnNames.has("is_checked");
+      const hasAssignedTo = columnNames.has("assigned_to");
+      const hasAssignedUserId = columnNames.has("assigned_user_id");
+      const hasItemType = columnNames.has("item_type");
 
-      if (!hasCreatedBy && !hasUserId) {
+      if (
+        !hasCreatedBy &&
+        !hasUserId &&
+        !hasName &&
+        !hasItem &&
+        !hasIsPacked &&
+        !hasIsChecked &&
+        !hasAssignedTo &&
+        !hasAssignedUserId &&
+        !hasItemType
+      ) {
         this.packingItemsCreatorCompatInitialized = true;
         return;
       }
@@ -2512,6 +2529,48 @@ export class DatabaseStorage implements IStorage {
         );
       }
 
+      if (!hasName && hasItem) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS name TEXT`,
+        );
+      }
+
+      if (!hasItem && hasName) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS item TEXT`,
+        );
+      }
+
+      if (!hasIsPacked && hasIsChecked) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS is_packed BOOLEAN`,
+        );
+      }
+
+      if (!hasIsChecked && hasIsPacked) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS is_checked BOOLEAN`,
+        );
+      }
+
+      if (!hasAssignedTo && hasAssignedUserId) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS assigned_to TEXT`,
+        );
+      }
+
+      if (!hasAssignedUserId && hasAssignedTo) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS assigned_user_id TEXT`,
+        );
+      }
+
+      if (!hasItemType) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS item_type TEXT`,
+        );
+      }
+
       await query(`
         UPDATE packing_items
         SET created_by = user_id
@@ -2524,6 +2583,60 @@ export class DatabaseStorage implements IStorage {
         SET user_id = created_by
         WHERE user_id IS NULL
           AND created_by IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET name = item
+        WHERE name IS NULL
+          AND item IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET item = name
+        WHERE item IS NULL
+          AND name IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET is_packed = is_checked
+        WHERE is_packed IS NULL
+          AND is_checked IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET is_checked = is_packed
+        WHERE is_checked IS NULL
+          AND is_packed IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET assigned_to = assigned_user_id
+        WHERE assigned_to IS NULL
+          AND assigned_user_id IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET assigned_user_id = assigned_to
+        WHERE assigned_user_id IS NULL
+          AND assigned_to IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET item_type = 'personal'
+        WHERE item_type IS NULL OR btrim(item_type) = ''
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET is_packed = FALSE
+        WHERE is_packed IS NULL
       `);
 
       this.packingItemsCreatorCompatInitialized = true;
@@ -2582,7 +2695,12 @@ export class DatabaseStorage implements IStorage {
           ["title", "name"],
         ],
         hotels: [["created_by", "user_id"]],
-        packing_items: [["created_by", "user_id"]],
+        packing_items: [
+          ["created_by", "user_id"],
+          ["name", "item"],
+          ["is_packed", "is_checked"],
+          ["assigned_to", "assigned_user_id"],
+        ],
         users: [
           ["cash_app_username", "cash_app_username_legacy"],
           ["cash_app_phone", "cash_app_phone_legacy"],
