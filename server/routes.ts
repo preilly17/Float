@@ -814,6 +814,7 @@ export function setupRoutes(app: Express) {
       req.session.save((saveErr: any) => {
         if (saveErr) {
           console.error("Session save error after registration:", saveErr);
+          return res.status(500).json({ message: "Unable to create a persistent session. Please try again." });
         }
         res.status(201).json(userResponse);
       });
@@ -854,6 +855,7 @@ export function setupRoutes(app: Express) {
       req.session.save((saveErr: any) => {
         if (saveErr) {
           console.error("Session save error after login:", saveErr);
+          return res.status(500).json({ message: "Unable to create a persistent session. Please try again." });
         }
         res.json(userResponse);
       });
