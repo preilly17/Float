@@ -4457,11 +4457,34 @@ export class DatabaseStorage implements IStorage {
   ): Promise<ActivityWithDetails[]> {
     await this.ensureActivityTypeColumn();
 
+    const { rows: activityColumnRows } = await query<{ column_name: string }>(
+      `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'activities'
+      `,
+    );
+
+    const activityColumnNames = new Set(
+      activityColumnRows.map(({ column_name }) => column_name),
+    );
+
+    const tripReferenceColumn = activityColumnNames.has("trip_calendar_id")
+      ? "trip_calendar_id"
+      : activityColumnNames.has("trip_id")
+        ? "trip_id"
+        : null;
+
+    if (!tripReferenceColumn) {
+      throw new Error("activities table is missing a trip reference column");
+    }
+
     const { rows: activityRows } = await query<ActivityWithPosterRow>(
       `
       SELECT
         a.id,
-        a.trip_calendar_id,
+        a.${tripReferenceColumn} AS trip_calendar_id,
         a.posted_by,
         COALESCE(a.title, a.name) AS name,
         a.description,
@@ -4502,7 +4525,7 @@ export class DatabaseStorage implements IStorage {
         u.updated_at AS poster_updated_at
       FROM activities a
       JOIN users u ON u.id = a.posted_by
-      WHERE a.trip_calendar_id = $1
+      WHERE a.${tripReferenceColumn} = $1
         AND a.status <> 'canceled'
       ORDER BY a.start_time ASC, a.id ASC
       `,
