@@ -2342,9 +2342,17 @@ export class DatabaseStorage implements IStorage {
 
   private hotelsCreatorCompatInitialized = false;
 
+  private packingItemsCreatorCompatInitPromise: Promise<void> | null = null;
+
+  private packingItemsCreatorCompatInitialized = false;
+
   private userLegacyPaymentCompatInitPromise: Promise<void> | null = null;
 
   private userLegacyPaymentCompatInitialized = false;
+
+  private tripApiSchemaAuditInitPromise: Promise<void> | null = null;
+
+  private tripApiSchemaAudited = false;
 
   private async ensureUserLegacyPaymentCompatibility(): Promise<void> {
     if (this.userLegacyPaymentCompatInitialized) {
@@ -2451,6 +2459,165 @@ export class DatabaseStorage implements IStorage {
       await this.hotelsCreatorCompatInitPromise;
     } finally {
       this.hotelsCreatorCompatInitPromise = null;
+    }
+  }
+
+  private async ensurePackingItemsCreatorCompatibility(): Promise<void> {
+    if (this.packingItemsCreatorCompatInitialized) {
+      return;
+    }
+
+    if (this.packingItemsCreatorCompatInitPromise) {
+      await this.packingItemsCreatorCompatInitPromise;
+      return;
+    }
+
+    this.packingItemsCreatorCompatInitPromise = (async () => {
+      const { rows } = await query<{ column_name: string }>(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'packing_items'
+        `,
+      );
+
+      if (rows.length === 0) {
+        this.packingItemsCreatorCompatInitialized = true;
+        return;
+      }
+
+      const columnNames = new Set(rows.map((row) => row.column_name));
+      const hasCreatedBy = columnNames.has("created_by");
+      const hasUserId = columnNames.has("user_id");
+
+      if (!hasCreatedBy && !hasUserId) {
+        this.packingItemsCreatorCompatInitialized = true;
+        return;
+      }
+
+      if (!hasCreatedBy && hasUserId) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS created_by TEXT`,
+        );
+      }
+
+      if (!hasUserId && hasCreatedBy) {
+        await query(
+          `ALTER TABLE packing_items ADD COLUMN IF NOT EXISTS user_id TEXT`,
+        );
+      }
+
+      await query(`
+        UPDATE packing_items
+        SET created_by = user_id
+        WHERE created_by IS NULL
+          AND user_id IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE packing_items
+        SET user_id = created_by
+        WHERE user_id IS NULL
+          AND created_by IS NOT NULL
+      `);
+
+      this.packingItemsCreatorCompatInitialized = true;
+    })();
+
+    try {
+      await this.packingItemsCreatorCompatInitPromise;
+    } finally {
+      this.packingItemsCreatorCompatInitPromise = null;
+    }
+  }
+
+  private async auditTripApiSchemaCompatibility(): Promise<void> {
+    if (this.tripApiSchemaAudited) {
+      return;
+    }
+
+    if (this.tripApiSchemaAuditInitPromise) {
+      await this.tripApiSchemaAuditInitPromise;
+      return;
+    }
+
+    this.tripApiSchemaAuditInitPromise = (async () => {
+      const requiredColumnsByTable: Record<string, string[]> = {
+        trip_calendars: ["id", "created_by", "share_code"],
+        trip_members: ["user_id"],
+        users: ["id", "email"],
+        activities: ["id", "posted_by"],
+        hotels: ["id", "trip_id"],
+        packing_items: ["id", "trip_id"],
+      };
+
+      const { rows } = await query<{ table_name: string; column_name: string }>(
+        `
+        SELECT table_name, column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = ANY($1::text[])
+        `,
+        [Object.keys(requiredColumnsByTable)],
+      );
+
+      const foundByTable = new Map<string, Set<string>>();
+      for (const row of rows) {
+        if (!foundByTable.has(row.table_name)) {
+          foundByTable.set(row.table_name, new Set());
+        }
+        foundByTable.get(row.table_name)?.add(row.column_name);
+      }
+
+      const aliasCompatibilityGroups: Record<string, string[][]> = {
+        trip_members: [["trip_calendar_id", "trip_id"]],
+        activities: [["trip_calendar_id", "trip_id"]],
+        hotels: [["created_by", "user_id"]],
+        packing_items: [["created_by", "user_id"]],
+        users: [
+          ["cash_app_username", "cash_app_username_legacy"],
+          ["cash_app_phone", "cash_app_phone_legacy"],
+        ],
+      };
+
+      const problems: string[] = [];
+
+      for (const [table, requiredColumns] of Object.entries(requiredColumnsByTable)) {
+        const found = foundByTable.get(table) ?? new Set<string>();
+        if (found.size === 0) {
+          problems.push(`${table}: table not found`);
+          continue;
+        }
+
+        for (const column of requiredColumns) {
+          if (!found.has(column)) {
+            problems.push(`${table}.${column} missing`);
+          }
+        }
+
+        const groups = aliasCompatibilityGroups[table] ?? [];
+        for (const group of groups) {
+          const hasAny = group.some((column) => found.has(column));
+          if (!hasAny) {
+            problems.push(`${table}: missing all alias columns [${group.join(" | ")}]`);
+          }
+        }
+      }
+
+      if (problems.length > 0) {
+        console.warn(
+          `[schema-audit] Trip API schema mismatches detected: ${problems.join("; ")}`,
+        );
+      }
+
+      this.tripApiSchemaAudited = true;
+    })();
+
+    try {
+      await this.tripApiSchemaAuditInitPromise;
+    } finally {
+      this.tripApiSchemaAuditInitPromise = null;
     }
   }
 
@@ -2890,6 +3057,8 @@ export class DatabaseStorage implements IStorage {
     }
 
     this.packingInitPromise = (async () => {
+      await this.ensurePackingItemsCreatorCompatibility();
+
       await query(`
         CREATE TABLE IF NOT EXISTS packing_item_statuses (
           id SERIAL PRIMARY KEY,
@@ -3461,6 +3630,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserTrips(userId: string): Promise<TripWithDetails[]> {
+    await this.auditTripApiSchemaCompatibility();
     await this.ensureTripMembersCompatibility();
     const tripReferenceColumn = "trip_calendar_id";
     const { rows } = await query<{ id: number }>(
