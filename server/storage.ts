@@ -3065,6 +3065,44 @@ export class DatabaseStorage implements IStorage {
           WHERE proposed_by IS NULL
             AND created_by IS NOT NULL
         `);
+
+        if (tableName === "flight_proposals") {
+          const hasOrigin = columnNames.has("origin");
+          const hasDestination = columnNames.has("destination");
+          const hasDepartureAirport = columnNames.has("departure_airport");
+          const hasArrivalAirport = columnNames.has("arrival_airport");
+          const hasData = columnNames.has("data");
+
+          if (!hasOrigin) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS origin TEXT`);
+          }
+
+          if (!hasDestination) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS destination TEXT`);
+          }
+
+          if (!hasData) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS data JSONB`);
+          }
+
+          if (hasDepartureAirport) {
+            await query(`
+              UPDATE flight_proposals
+              SET origin = departure_airport
+              WHERE origin IS NULL
+                AND departure_airport IS NOT NULL
+            `);
+          }
+
+          if (hasArrivalAirport) {
+            await query(`
+              UPDATE flight_proposals
+              SET destination = arrival_airport
+              WHERE destination IS NULL
+                AND arrival_airport IS NOT NULL
+            `);
+          }
+        }
       }
 
       this.proposalCreatorCompatInitialized = true;
