@@ -2314,6 +2314,10 @@ export class DatabaseStorage implements IStorage {
 
   private proposalCreatorCompatInitialized = false;
 
+  private proposalRankingCompatInitPromise: Promise<void> | null = null;
+
+  private proposalRankingCompatInitialized = false;
+
   private activityStatusInitPromise: Promise<void> | null = null;
 
   private activityStatusColumnInitialized = false;
@@ -3112,6 +3116,66 @@ export class DatabaseStorage implements IStorage {
       await this.proposalCreatorCompatInitPromise;
     } finally {
       this.proposalCreatorCompatInitPromise = null;
+    }
+  }
+
+  private async ensureProposalRankingCompatibility(): Promise<void> {
+    if (this.proposalRankingCompatInitialized) {
+      return;
+    }
+
+    if (this.proposalRankingCompatInitPromise) {
+      await this.proposalRankingCompatInitPromise;
+      return;
+    }
+
+    this.proposalRankingCompatInitPromise = (async () => {
+      const rankingTables = [
+        "hotel_rankings",
+        "flight_rankings",
+        "restaurant_rankings",
+      ] as const;
+
+      for (const tableName of rankingTables) {
+        const { rows } = await query<{ column_name: string }>(
+          `
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = $1
+          `,
+          [tableName],
+        );
+
+        if (rows.length === 0) {
+          continue;
+        }
+
+        const columnNames = new Set(rows.map((row) => row.column_name));
+        const hasRanking = columnNames.has("ranking");
+        const hasRank = columnNames.has("rank");
+
+        if (!hasRanking) {
+          await query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ranking INTEGER`);
+        }
+
+        if (hasRank) {
+          await query(`
+            UPDATE ${tableName}
+            SET ranking = "rank"
+            WHERE ranking IS NULL
+              AND "rank" IS NOT NULL
+          `);
+        }
+      }
+
+      this.proposalRankingCompatInitialized = true;
+    })();
+
+    try {
+      await this.proposalRankingCompatInitPromise;
+    } finally {
+      this.proposalRankingCompatInitPromise = null;
     }
   }
 
@@ -11398,6 +11462,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
     },
   ): Promise<HotelProposalWithDetails[]> {
     await this.ensureProposalCreatorCompatibility();
+    await this.ensureProposalRankingCompatibility();
 
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -11476,7 +11541,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
         hr.id,
         hr.proposal_id,
         hr.user_id,
-        hr."rank" AS ranking_value,
+        hr.ranking AS ranking_value,
         hr.created_at,
         hr.updated_at,
         ${selectUserColumns("u", "user_")}
@@ -11525,6 +11590,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
     },
   ): Promise<FlightProposalWithDetails[]> {
     await this.ensureProposalCreatorCompatibility();
+    await this.ensureProposalRankingCompatibility();
 
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -11612,7 +11678,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
           fr.id,
           fr.proposal_id,
           fr.user_id,
-          fr."rank" AS ranking_value,
+          fr.ranking AS ranking_value,
           NULL AS notes,
           fr.created_at,
           fr.updated_at,
@@ -11676,6 +11742,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
     },
   ): Promise<RestaurantProposalWithDetails[]> {
     await this.ensureProposalCreatorCompatibility();
+    await this.ensureProposalRankingCompatibility();
 
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -11744,7 +11811,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
         rr.id,
         rr.proposal_id,
         rr.user_id,
-        rr."rank" AS ranking_value,
+        rr.ranking AS ranking_value,
         NULL AS notes,
         rr.created_at,
         rr.updated_at,
@@ -11989,6 +12056,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
     ranking: InsertHotelRanking,
     userId: string,
   ): Promise<{ tripId: number; affectedProposalIds: number[] }> {
+    await this.ensureProposalRankingCompatibility();
+
     const client = await pool.connect();
     let tripId: number | null = null;
     const affectedProposalIds = new Set<number>();
@@ -12015,7 +12084,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
         JOIN hotel_proposals hp ON hp.id = hr.proposal_id
         WHERE hr.user_id = $1
           AND hp.trip_id = $2
-          AND hr."rank" = $3
+          AND hr.ranking = $3
           AND hr.proposal_id <> $4
         `,
         [userId, tripId, ranking.ranking, ranking.proposalId],
@@ -12036,10 +12105,10 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
       await client.query(
         `
-        INSERT INTO hotel_rankings (proposal_id, user_id, "rank")
+        INSERT INTO hotel_rankings (proposal_id, user_id, ranking)
         VALUES ($1, $2, $3)
         ON CONFLICT (proposal_id, user_id) DO UPDATE SET
-          "rank" = EXCLUDED."rank",
+          ranking = EXCLUDED.ranking,
           updated_at = NOW()
         `,
         [ranking.proposalId, userId, ranking.ranking],
@@ -12074,9 +12143,11 @@ ${selectUserColumns("participant_user", "participant_user_")}
   }
 
   async updateHotelProposalAverageRanking(proposalId: number): Promise<void> {
+    await this.ensureProposalRankingCompatibility();
+
     const { rows } = await query<{ average: number | null }>(
       `
-      SELECT AVG("rank")::numeric(10,2) AS average
+      SELECT AVG(ranking)::numeric(10,2) AS average
       FROM hotel_rankings
       WHERE proposal_id = $1
       `,
@@ -12621,6 +12692,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
     ranking: InsertFlightRanking,
     userId: string,
   ): Promise<{ tripId: number; affectedProposalIds: number[] }> {
+    await this.ensureProposalRankingCompatibility();
+
     const client = await pool.connect();
     const affectedProposalIds = new Set<number>();
     let tripId: number | null = null;
@@ -12647,7 +12720,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
         JOIN flight_proposals fp ON fp.id = fr.proposal_id
         WHERE fr.user_id = $1
           AND fp.trip_id = $2
-          AND fr."rank" = $3
+          AND fr.ranking = $3
           AND fr.proposal_id <> $4
         `,
         [userId, proposalRow.trip_id, ranking.ranking, ranking.proposalId],
@@ -12668,10 +12741,10 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
       await client.query(
         `
-        INSERT INTO flight_rankings (proposal_id, user_id, "rank")
+        INSERT INTO flight_rankings (proposal_id, user_id, ranking)
         VALUES ($1, $2, $3)
         ON CONFLICT (proposal_id, user_id) DO UPDATE SET
-          "rank" = EXCLUDED."rank",
+          ranking = EXCLUDED.ranking,
           updated_at = NOW()
         `,
         [ranking.proposalId, userId, ranking.ranking],
@@ -12701,9 +12774,11 @@ ${selectUserColumns("participant_user", "participant_user_")}
   }
 
   async updateFlightProposalAverageRanking(proposalId: number): Promise<void> {
+    await this.ensureProposalRankingCompatibility();
+
     const { rows } = await query<{ average: number | null }>(
       `
-      SELECT AVG("rank")::numeric(10,2) AS average
+      SELECT AVG(ranking)::numeric(10,2) AS average
       FROM flight_rankings
       WHERE proposal_id = $1
       `,
@@ -13984,6 +14059,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
     ranking: InsertRestaurantRanking,
     userId: string,
   ): Promise<void> {
+    await this.ensureProposalRankingCompatibility();
+
     const client = await pool.connect();
     const affectedProposalIds = new Set<number>();
 
@@ -14007,7 +14084,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
         JOIN restaurant_proposals rp ON rp.id = rr.proposal_id
         WHERE rr.user_id = $1
           AND rp.trip_id = $2
-          AND rr."rank" = $3
+          AND rr.ranking = $3
           AND rr.proposal_id <> $4
         `,
         [userId, proposalRow.trip_id, ranking.ranking, ranking.proposalId],
@@ -14028,10 +14105,10 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
       await client.query(
         `
-        INSERT INTO restaurant_rankings (proposal_id, user_id, "rank")
+        INSERT INTO restaurant_rankings (proposal_id, user_id, ranking)
         VALUES ($1, $2, $3)
         ON CONFLICT (proposal_id, user_id) DO UPDATE SET
-          "rank" = EXCLUDED."rank",
+          ranking = EXCLUDED.ranking,
           updated_at = NOW()
         `,
         [ranking.proposalId, userId, ranking.ranking],
@@ -14055,9 +14132,11 @@ ${selectUserColumns("participant_user", "participant_user_")}
   }
 
   async updateRestaurantProposalAverageRanking(proposalId: number): Promise<void> {
+    await this.ensureProposalRankingCompatibility();
+
     const { rows } = await query<{ average: number | null }>(
       `
-      SELECT AVG("rank")::numeric(10,2) AS average
+      SELECT AVG(ranking)::numeric(10,2) AS average
       FROM restaurant_rankings
       WHERE proposal_id = $1
       `,
