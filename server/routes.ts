@@ -5779,9 +5779,21 @@ export function setupRoutes(app: Express) {
       }
 
       const hotel = await storage.addHotel(hotelInsertData, userId);
-      
-      await storage.createHotelRsvpsForTripMembers(hotel.id, tripId, userId, selectedMemberIds);
-      
+
+      try {
+        await storage.createHotelRsvpsForTripMembers(
+          hotel.id,
+          tripId,
+          userId,
+          selectedMemberIds,
+        );
+      } catch (rsvpError) {
+        console.warn(
+          "Hotel created but failed to initialize hotel RSVPs:",
+          rsvpError,
+        );
+      }
+
       res.json(hotel);
     } catch (error: unknown) {
       console.error("Error adding hotel:", error);
