@@ -8406,20 +8406,40 @@ ${selectUserColumns("participant_user", "participant_user_")}
       memberIds = tripMembers.map(m => m.user_id);
     }
     
-    for (const memberId of memberIds) {
-      if (memberId === creatorUserId) {
+    try {
+      for (const memberId of memberIds) {
+        if (memberId === creatorUserId) {
+          await query(
+            `INSERT INTO flight_rsvps (flight_id, user_id, status, responded_at)
+             VALUES ($1, $2, 'accepted', NOW())
+             ON CONFLICT (flight_id, user_id) DO NOTHING`,
+            [flightId, memberId]
+          );
+        } else {
+          await query(
+            `INSERT INTO flight_rsvps (flight_id, user_id, status)
+             VALUES ($1, $2, 'pending')
+             ON CONFLICT (flight_id, user_id) DO NOTHING`,
+            [flightId, memberId]
+          );
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes('relation "flight_rsvps" does not exist')) {
+        throw error;
+      }
+
+      for (const memberId of memberIds) {
         await query(
-          `INSERT INTO flight_rsvps (flight_id, user_id, status, responded_at)
-           VALUES ($1, $2, 'accepted', NOW())
-           ON CONFLICT (flight_id, user_id) DO NOTHING`,
-          [flightId, memberId]
-        );
-      } else {
-        await query(
-          `INSERT INTO flight_rsvps (flight_id, user_id, status)
-           VALUES ($1, $2, 'pending')
-           ON CONFLICT (flight_id, user_id) DO NOTHING`,
-          [flightId, memberId]
+          `INSERT INTO flight_attendees (trip_id, flight_id, user_id, added_at, added_by_user_id)
+           SELECT $1, $2, $3, NOW(), $4
+           WHERE NOT EXISTS (
+             SELECT 1
+             FROM flight_attendees
+             WHERE flight_id = $2 AND user_id = $3
+           )`,
+          [tripId, flightId, memberId, creatorUserId]
         );
       }
     }
@@ -8430,79 +8450,191 @@ ${selectUserColumns("participant_user", "participant_user_")}
     userId: string,
     status: 'accepted' | 'declined'
   ): Promise<FlightRsvp> {
-    const { rows } = await query<{
-      id: number;
-      flight_id: number;
-      user_id: string;
-      status: string;
-      responded_at: Date | null;
-      created_at: Date | null;
-      updated_at: Date | null;
-    }>(
-      `UPDATE flight_rsvps
-       SET status = $1, responded_at = NOW(), updated_at = NOW()
-       WHERE flight_id = $2 AND user_id = $3
-       RETURNING id, flight_id, user_id, status, responded_at, created_at, updated_at`,
-      [status, flightId, userId]
-    );
-    
-    if (!rows[0]) {
-      throw new Error('RSVP not found');
+    try {
+      const { rows } = await query<{
+        id: number;
+        flight_id: number;
+        user_id: string;
+        status: string;
+        responded_at: Date | null;
+        created_at: Date | null;
+        updated_at: Date | null;
+      }>(
+        `UPDATE flight_rsvps
+         SET status = $1, responded_at = NOW(), updated_at = NOW()
+         WHERE flight_id = $2 AND user_id = $3
+         RETURNING id, flight_id, user_id, status, responded_at, created_at, updated_at`,
+        [status, flightId, userId]
+      );
+      
+      if (!rows[0]) {
+        throw new Error('RSVP not found');
+      }
+      
+      return {
+        id: rows[0].id,
+        flightId: rows[0].flight_id,
+        userId: rows[0].user_id,
+        status: rows[0].status as 'pending' | 'accepted' | 'declined',
+        respondedAt: rows[0].responded_at,
+        createdAt: rows[0].created_at,
+        updatedAt: rows[0].updated_at,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes('relation "flight_rsvps" does not exist')) {
+        throw error;
+      }
+
+      if (status === 'declined') {
+        const { rows } = await query<{ id: number; added_at: Date | null }>(
+          `DELETE FROM flight_attendees
+           WHERE flight_id = $1 AND user_id = $2
+           RETURNING id, added_at`,
+          [flightId, userId]
+        );
+
+        if (!rows[0]) {
+          throw new Error('RSVP not found');
+        }
+
+        return {
+          id: rows[0].id,
+          flightId,
+          userId,
+          status: 'declined',
+          respondedAt: new Date(),
+          createdAt: rows[0].added_at,
+          updatedAt: new Date(),
+        };
+      }
+
+      await query(
+        `INSERT INTO flight_attendees (trip_id, flight_id, user_id, added_at, added_by_user_id)
+         SELECT f.trip_id, $1, $2, NOW(), $2
+         FROM flights f
+         WHERE f.id = $1
+         AND NOT EXISTS (
+           SELECT 1
+           FROM flight_attendees
+           WHERE flight_id = $1 AND user_id = $2
+         )`,
+        [flightId, userId]
+      );
+
+      const { rows } = await query<{ id: number; added_at: Date | null }>(
+        `SELECT id, added_at
+         FROM flight_attendees
+         WHERE flight_id = $1 AND user_id = $2
+         ORDER BY id DESC
+         LIMIT 1`,
+        [flightId, userId]
+      );
+
+      if (!rows[0]) {
+        throw new Error('RSVP not found');
+      }
+
+      return {
+        id: rows[0].id,
+        flightId,
+        userId,
+        status: 'accepted',
+        respondedAt: new Date(),
+        createdAt: rows[0].added_at,
+        updatedAt: new Date(),
+      };
     }
-    
-    return {
-      id: rows[0].id,
-      flightId: rows[0].flight_id,
-      userId: rows[0].user_id,
-      status: rows[0].status as 'pending' | 'accepted' | 'declined',
-      respondedAt: rows[0].responded_at,
-      createdAt: rows[0].created_at,
-      updatedAt: rows[0].updated_at,
-    };
   }
 
   async getFlightRsvps(flightId: number): Promise<FlightRsvpWithUser[]> {
-    const { rows } = await query<{
-      id: number;
-      flight_id: number;
-      user_id: string;
-      status: string;
-      responded_at: Date | null;
-      created_at: Date | null;
-      updated_at: Date | null;
-      user_email: string;
-      user_username: string | null;
-      user_first_name: string | null;
-      user_last_name: string | null;
-      user_profile_image_url: string | null;
-    }>(
-      `SELECT fr.id, fr.flight_id, fr.user_id, fr.status, fr.responded_at, fr.created_at, fr.updated_at,
-              u.email as user_email, u.username as user_username, u.first_name as user_first_name,
-              u.last_name as user_last_name, u.profile_image_url as user_profile_image_url
-       FROM flight_rsvps fr
-       JOIN users u ON fr.user_id = u.id
-       WHERE fr.flight_id = $1
-       ORDER BY fr.created_at`,
-      [flightId]
-    );
-    
-    return rows.map(row => ({
-      id: row.id,
-      flightId: row.flight_id,
-      userId: row.user_id,
-      status: row.status as 'pending' | 'accepted' | 'declined',
-      respondedAt: row.responded_at,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      user: {
-        id: row.user_id,
-        email: row.user_email,
-        username: row.user_username,
-        firstName: row.user_first_name,
-        lastName: row.user_last_name,
-        profileImageUrl: row.user_profile_image_url,
-      } as User,
-    }));
+    try {
+      const { rows } = await query<{
+        id: number;
+        flight_id: number;
+        user_id: string;
+        status: string;
+        responded_at: Date | null;
+        created_at: Date | null;
+        updated_at: Date | null;
+        user_email: string;
+        user_username: string | null;
+        user_first_name: string | null;
+        user_last_name: string | null;
+        user_profile_image_url: string | null;
+      }>(
+        `SELECT fr.id, fr.flight_id, fr.user_id, fr.status, fr.responded_at, fr.created_at, fr.updated_at,
+                u.email as user_email, u.username as user_username, u.first_name as user_first_name,
+                u.last_name as user_last_name, u.profile_image_url as user_profile_image_url
+         FROM flight_rsvps fr
+         JOIN users u ON fr.user_id = u.id
+         WHERE fr.flight_id = $1
+         ORDER BY fr.created_at`,
+        [flightId]
+      );
+      
+      return rows.map(row => ({
+        id: row.id,
+        flightId: row.flight_id,
+        userId: row.user_id,
+        status: row.status as 'pending' | 'accepted' | 'declined',
+        respondedAt: row.responded_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        user: {
+          id: row.user_id,
+          email: row.user_email,
+          username: row.user_username,
+          firstName: row.user_first_name,
+          lastName: row.user_last_name,
+          profileImageUrl: row.user_profile_image_url,
+        } as User,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes('relation "flight_rsvps" does not exist')) {
+        throw error;
+      }
+
+      const { rows } = await query<{
+        id: number;
+        flight_id: number;
+        user_id: string;
+        added_at: Date | null;
+        user_email: string;
+        user_username: string | null;
+        user_first_name: string | null;
+        user_last_name: string | null;
+        user_profile_image_url: string | null;
+      }>(
+        `SELECT fa.id, fa.flight_id, fa.user_id, fa.added_at,
+                u.email as user_email, u.username as user_username, u.first_name as user_first_name,
+                u.last_name as user_last_name, u.profile_image_url as user_profile_image_url
+         FROM flight_attendees fa
+         JOIN users u ON fa.user_id = u.id
+         WHERE fa.flight_id = $1
+         ORDER BY fa.added_at`,
+        [flightId]
+      );
+
+      return rows.map(row => ({
+        id: row.id,
+        flightId: row.flight_id,
+        userId: row.user_id,
+        status: 'accepted',
+        respondedAt: row.added_at,
+        createdAt: row.added_at,
+        updatedAt: row.added_at,
+        user: {
+          id: row.user_id,
+          email: row.user_email,
+          username: row.user_username,
+          firstName: row.user_first_name,
+          lastName: row.user_last_name,
+          profileImageUrl: row.user_profile_image_url,
+        } as User,
+      }));
+    }
   }
 
   async getUserFlights(userId: string): Promise<FlightWithDetails[]> {
