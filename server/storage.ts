@@ -11468,13 +11468,15 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
     const proposalIds = rows.map((row) => row.id);
 
-    const { rows: rankingRows } = await query<HotelRankingWithUserRow>(
+    const { rows: rankingRows } = await query<
+      HotelRankingWithUserRow & { ranking_value: number | string }
+    >(
       `
       SELECT
         hr.id,
         hr.proposal_id,
         hr.user_id,
-        hr."rank",
+        hr."rank" AS ranking_value,
         hr.created_at,
         hr.updated_at,
         ${selectUserColumns("u", "user_")}
@@ -11488,7 +11490,10 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
     const rankingsByProposal = new Map<number, (HotelRanking & { user: User })[]>();
     for (const row of rankingRows) {
-      const ranking = mapHotelRankingWithUser(row);
+      const ranking = mapHotelRankingWithUser({
+        ...row,
+        rank: row.ranking_value,
+      });
       const list = rankingsByProposal.get(ranking.proposalId);
       if (list) {
         list.push(ranking);
@@ -11599,13 +11604,15 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
     const proposalIds = rows.map((row) => row.id);
 
-    const { rows: rankingRows } = await query<FlightRankingWithUserRow>(
+    const { rows: rankingRows } = await query<
+      FlightRankingWithUserRow & { ranking_value: number | string }
+    >(
       `
       SELECT
         fr.id,
         fr.proposal_id,
         fr.user_id,
-        fr."rank",
+        fr."rank" AS ranking_value,
         NULL AS notes,
         fr.created_at,
         fr.updated_at,
@@ -11620,7 +11627,10 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
     const rankingsByProposal = new Map<number, (FlightRanking & { user: User })[]>();
     for (const row of rankingRows) {
-      const ranking = mapFlightRankingWithUser(row);
+      const ranking = mapFlightRankingWithUser({
+        ...row,
+        rank: row.ranking_value,
+      });
       const list = rankingsByProposal.get(ranking.proposalId);
       if (list) {
         list.push(ranking);
@@ -11711,13 +11721,15 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
     const proposalIds = rows.map((row) => row.id);
 
-    const { rows: rankingRows } = await query<RestaurantRankingWithUserRow>(
+    const { rows: rankingRows } = await query<
+      RestaurantRankingWithUserRow & { ranking_value: number | string }
+    >(
       `
       SELECT
         rr.id,
         rr.proposal_id,
         rr.user_id,
-        rr."rank",
+        rr."rank" AS ranking_value,
         NULL AS notes,
         rr.created_at,
         rr.updated_at,
@@ -11732,7 +11744,10 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
     const rankingsByProposal = new Map<number, (RestaurantRanking & { user: User })[]>();
     for (const row of rankingRows) {
-      const ranking = mapRestaurantRankingWithUser(row);
+      const ranking = mapRestaurantRankingWithUser({
+        ...row,
+        rank: row.ranking_value,
+      });
       const list = rankingsByProposal.get(ranking.proposalId);
       if (list) {
         list.push(ranking);
