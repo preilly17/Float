@@ -12449,9 +12449,6 @@ ${selectUserColumns("participant_user", "participant_user_")}
       INSERT INTO flights (
         trip_id,
         user_id,
-        created_by,
-        origin,
-        destination,
         flight_number,
         airline,
         airline_code,
@@ -12482,7 +12479,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
         updated_at
       )
       VALUES (
-        $1, $2, $2, $7, $12, $3, $4, $5, $6, $7, $8, $9, $10,
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
         $21, $22, $23, $24, $25, $26, $27, $28, NOW(), NOW()
       )
@@ -12940,21 +12937,18 @@ ${selectUserColumns("participant_user", "participant_user_")}
     } else {
       const { rows: flightRows } = await query<{ id: number }>(
         `INSERT INTO flights (
-          trip_id, user_id, created_by, origin, destination, airline, airline_code, flight_number,
+          trip_id, user_id, airline, airline_code, flight_number,
           departure_airport, departure_code, departure_time, departure_terminal,
           arrival_airport, arrival_code, arrival_time, arrival_terminal,
           flight_duration, layovers, aircraft, price, currency, seat_class, status,
           booking_reference, booking_source, purchase_url
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
         )
         RETURNING id`,
         [
           proposal.tripId,
           currentUserId,
-          currentUserId,
-          proposal.departureAirport || proposal.departureCode || 'Unknown',
-          proposal.arrivalAirport || proposal.arrivalCode || 'Unknown',
           proposal.airline,
           null,
           proposal.flightNumber,
