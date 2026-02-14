@@ -37,6 +37,7 @@ export function useAuth() {
       try {
         const response = await fetch(buildApiUrl("/api/auth/user"), {
           credentials: "include",
+          cache: "no-store",
           signal: controller.signal,
         });
 

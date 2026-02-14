@@ -151,6 +151,7 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const res = await fetch(buildApiUrl(queryKey.join("/") as string), {
       credentials: "include",
+      cache: "no-store",
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

@@ -888,6 +888,11 @@ export function setupRoutes(app: Express) {
 
   // Auth user endpoint with development bypass and custom auth support
   const handleAuthUser = async (req: any, res: any) => {
+    res.set("Cache-Control", "no-store, private, max-age=0");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+    res.set("Vary", "Cookie");
+
     try {
       // Check for custom auth session first
       if (req.session?.userId && req.session?.authProvider === 'custom') {
