@@ -2322,6 +2322,10 @@ export class DatabaseStorage implements IStorage {
 
   private activityInvitesInitialized = false;
 
+  private activityCommentsCompatInitPromise: Promise<void> | null = null;
+
+  private activityCommentsCompatInitialized = false;
+
   private activitiesCompatInitPromise: Promise<void> | null = null;
 
   private activitiesCompatInitialized = false;
@@ -2665,6 +2669,7 @@ export class DatabaseStorage implements IStorage {
         trip_members: ["user_id"],
         users: ["id", "email"],
         activities: ["id", "posted_by"],
+        activity_comments: ["id", "activity_id", "user_id"],
         hotels: ["id", "trip_id"],
         packing_items: ["id", "trip_id"],
       };
@@ -2694,6 +2699,7 @@ export class DatabaseStorage implements IStorage {
           ["posted_by", "created_by"],
           ["title", "name"],
         ],
+        activity_comments: [["comment", "content"]],
         hotels: [["created_by", "user_id"]],
         packing_items: [
           ["created_by", "user_id"],
@@ -3105,6 +3111,67 @@ export class DatabaseStorage implements IStorage {
       await this.activitiesCompatInitPromise;
     } finally {
       this.activitiesCompatInitPromise = null;
+    }
+  }
+
+  private async ensureActivityCommentsCompatibility(): Promise<void> {
+    if (this.activityCommentsCompatInitialized) {
+      return;
+    }
+
+    if (this.activityCommentsCompatInitPromise) {
+      await this.activityCommentsCompatInitPromise;
+      return;
+    }
+
+    this.activityCommentsCompatInitPromise = (async () => {
+      const { rows } = await query<{ column_name: string }>(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'activity_comments'
+        `,
+      );
+
+      if (rows.length === 0) {
+        this.activityCommentsCompatInitialized = true;
+        return;
+      }
+
+      const columnNames = new Set(rows.map((row) => row.column_name));
+      const hasComment = columnNames.has("comment");
+      const hasContent = columnNames.has("content");
+
+      if (!hasComment && hasContent) {
+        await query(`ALTER TABLE activity_comments ADD COLUMN IF NOT EXISTS comment TEXT`);
+      }
+
+      if (!hasContent && hasComment) {
+        await query(`ALTER TABLE activity_comments ADD COLUMN IF NOT EXISTS content TEXT`);
+      }
+
+      await query(`
+        UPDATE activity_comments
+        SET comment = content
+        WHERE comment IS NULL
+          AND content IS NOT NULL
+      `);
+
+      await query(`
+        UPDATE activity_comments
+        SET content = comment
+        WHERE content IS NULL
+          AND comment IS NOT NULL
+      `);
+
+      this.activityCommentsCompatInitialized = true;
+    })();
+
+    try {
+      await this.activityCommentsCompatInitPromise;
+    } finally {
+      this.activityCommentsCompatInitPromise = null;
     }
   }
 
@@ -4954,6 +5021,7 @@ export class DatabaseStorage implements IStorage {
     userId: string,
   ): Promise<ActivityWithDetails[]> {
     await this.ensureActivityTypeColumn();
+    await this.ensureActivityCommentsCompatibility();
 
     const { rows: activityColumnRows } = await query<{ column_name: string }>(
       `
@@ -5464,6 +5532,8 @@ export class DatabaseStorage implements IStorage {
     comment: InsertActivityComment,
     userId: string,
   ): Promise<ActivityComment> {
+    await this.ensureActivityCommentsCompatibility();
+
     const { rows } = await query<ActivityCommentRow>(
       `
       INSERT INTO activity_comments (activity_id, user_id, comment)
@@ -5484,6 +5554,8 @@ export class DatabaseStorage implements IStorage {
   async getActivityComments(
     activityId: number,
   ): Promise<(ActivityComment & { user: User })[]> {
+    await this.ensureActivityCommentsCompatibility();
+
     const { rows } = await query<ActivityCommentWithUserRow>(
       `
       SELECT
