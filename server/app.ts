@@ -143,6 +143,7 @@ export type CreateAppResult = {
 export const createApp = (): CreateAppResult => {
   const app = express();
   app.set("trust proxy", 1);
+  app.set("etag", false);
 
   const { corsOptions, isOriginAllowed, allowedOrigins } = buildCorsState();
 
@@ -208,4 +209,3 @@ export const __testables__ = {
   buildCorsState,
   isTripsyncBetaDomain,
 };
-

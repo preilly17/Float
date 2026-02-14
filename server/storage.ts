@@ -10520,22 +10520,54 @@ ${selectUserColumns("participant_user", "participant_user_")}
       memberIds = tripMembers.map(m => m.user_id);
     }
     
-    for (const memberId of memberIds) {
-      if (memberId === creatorUserId) {
-        await query(
-          `INSERT INTO hotel_rsvps (hotel_id, user_id, status, responded_at)
-           VALUES ($1, $2, 'accepted', NOW())
-           ON CONFLICT (hotel_id, user_id) DO NOTHING`,
-          [hotelId, memberId]
-        );
-      } else {
-        await query(
-          `INSERT INTO hotel_rsvps (hotel_id, user_id, status)
-           VALUES ($1, $2, 'pending')
-           ON CONFLICT (hotel_id, user_id) DO NOTHING`,
-          [hotelId, memberId]
-        );
+    const insertRsvps = async () => {
+      for (const memberId of memberIds) {
+        if (memberId === creatorUserId) {
+          await query(
+            `INSERT INTO hotel_rsvps (hotel_id, user_id, status, responded_at)
+             VALUES ($1, $2, 'accepted', NOW())
+             ON CONFLICT (hotel_id, user_id) DO NOTHING`,
+            [hotelId, memberId]
+          );
+        } else {
+          await query(
+            `INSERT INTO hotel_rsvps (hotel_id, user_id, status)
+             VALUES ($1, $2, 'pending')
+             ON CONFLICT (hotel_id, user_id) DO NOTHING`,
+            [hotelId, memberId]
+          );
+        }
       }
+    };
+
+    try {
+      await insertRsvps();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes('relation "hotel_rsvps" does not exist')) {
+        throw error;
+      }
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS hotel_rsvps (
+          id SERIAL PRIMARY KEY,
+          hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+          responded_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE(hotel_id, user_id)
+        )
+      `);
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_hotel_rsvps_hotel ON hotel_rsvps(hotel_id)`,
+      );
+      await query(
+        `CREATE INDEX IF NOT EXISTS idx_hotel_rsvps_user ON hotel_rsvps(user_id)`,
+      );
+
+      await insertRsvps();
     }
   }
 

@@ -887,6 +887,20 @@ export function setupRoutes(app: Express) {
   });
 
   // Auth user endpoint with development bypass and custom auth support
+  const sendAuthUser = (res: any, user: any) => {
+    if (!user || typeof user !== "object") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const normalized = {
+      ...user,
+      userId: typeof user.id === "string" ? user.id : null,
+      user,
+    };
+
+    return res.status(200).json(normalized);
+  };
+
   const handleAuthUser = async (req: any, res: any) => {
     res.set("Cache-Control", "no-store, private, max-age=0");
     res.set("Pragma", "no-cache");
@@ -900,7 +914,7 @@ export function setupRoutes(app: Express) {
           const user = await storage.getUser(req.session.userId);
           if (user) {
             const { passwordHash, ...userResponse } = user;
-            return res.json(userResponse);
+            return sendAuthUser(res, userResponse);
           }
         } catch (error: unknown) {
           console.log("Custom auth user lookup failed, falling back to demo");
@@ -917,7 +931,7 @@ export function setupRoutes(app: Express) {
           
           if (existingUser) {
             console.log("Development mode: using existing demo user with saved preferences");
-            return res.json(existingUser);
+            return sendAuthUser(res, existingUser);
           }
         } catch (error: unknown) {
           console.log("Could not fetch existing demo user, creating new one");
@@ -944,10 +958,10 @@ export function setupRoutes(app: Express) {
         // Save the demo user to database so future updates persist
         try {
           const savedUser = await storage.upsertUser(demoUser);
-          return res.json(savedUser);
+          return sendAuthUser(res, savedUser);
         } catch (error: unknown) {
           console.log("Could not save demo user to database, returning hardcoded version");
-          return res.json(demoUser);
+          return sendAuthUser(res, demoUser);
         }
       }
       
@@ -969,13 +983,13 @@ export function setupRoutes(app: Express) {
             lastName: req.user.claims.last_name,
             profileImageUrl: req.user.claims.profile_image_url,
           });
-          return res.json(newUser);
+          return sendAuthUser(res, newUser);
         }
 
         return res.status(404).json({ message: "User not found" });
       }
 
-      res.json(user);
+      return sendAuthUser(res, user);
     } catch (error: unknown) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
