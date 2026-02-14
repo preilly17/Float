@@ -10701,88 +10701,96 @@ ${selectUserColumns("participant_user", "participant_user_")}
     flight: Flight;
     inviterName: string;
   }>> {
-    const { rows } = await query<{
-      rsvp_id: number;
-      flight_id: number;
-      user_id: string;
-      status: string;
-      responded_at: Date | null;
-      rsvp_created_at: Date | null;
-      rsvp_updated_at: Date | null;
-      f_id: number;
-      f_trip_id: number;
-      f_flight_number: string;
-      f_airline: string;
-      f_airline_code: string | null;
-      f_departure_airport: string | null;
-      f_departure_code: string | null;
-      f_departure_time: Date | null;
-      f_arrival_airport: string | null;
-      f_arrival_code: string | null;
-      f_arrival_time: Date | null;
-      f_price: string | null;
-      f_currency: string | null;
-      f_status: string | null;
-      f_created_by: string;
-      inviter_first_name: string | null;
-      inviter_last_name: string | null;
-      inviter_username: string | null;
-    }>(
-      `SELECT 
-        fr.id as rsvp_id, fr.flight_id, fr.user_id, fr.status, fr.responded_at, 
-        fr.created_at as rsvp_created_at, fr.updated_at as rsvp_updated_at,
-        f.id as f_id, f.trip_id as f_trip_id, f.flight_number as f_flight_number,
-        f.airline as f_airline, f.airline_code as f_airline_code,
-        f.departure_airport as f_departure_airport, f.departure_code as f_departure_code,
-        f.departure_time as f_departure_time,
-        f.arrival_airport as f_arrival_airport, f.arrival_code as f_arrival_code,
-        f.arrival_time as f_arrival_time,
-        f.price as f_price, f.currency as f_currency,
-        f.status as f_status, f.created_by as f_created_by,
-        u.first_name as inviter_first_name, u.last_name as inviter_last_name, u.username as inviter_username
-      FROM flight_rsvps fr
-      JOIN flights f ON fr.flight_id = f.id
-      JOIN users u ON f.created_by = u.id
-      WHERE fr.user_id = $1 
-        AND f.trip_id = $2 
-        AND fr.status = 'pending'
-        AND f.status = 'scheduled'
-        AND f.created_by != $1
-      ORDER BY fr.created_at DESC`,
-      [userId, tripId]
-    );
+    try {
+      const { rows } = await query<{
+        rsvp_id: number;
+        flight_id: number;
+        user_id: string;
+        status: string;
+        responded_at: Date | null;
+        rsvp_created_at: Date | null;
+        rsvp_updated_at: Date | null;
+        f_id: number;
+        f_trip_id: number;
+        f_flight_number: string;
+        f_airline: string;
+        f_airline_code: string | null;
+        f_departure_airport: string | null;
+        f_departure_code: string | null;
+        f_departure_time: Date | null;
+        f_arrival_airport: string | null;
+        f_arrival_code: string | null;
+        f_arrival_time: Date | null;
+        f_price: string | null;
+        f_currency: string | null;
+        f_status: string | null;
+        f_created_by: string;
+        inviter_first_name: string | null;
+        inviter_last_name: string | null;
+        inviter_username: string | null;
+      }>(
+        `SELECT 
+          fr.id as rsvp_id, fr.flight_id, fr.user_id, fr.status, fr.responded_at, 
+          fr.created_at as rsvp_created_at, fr.updated_at as rsvp_updated_at,
+          f.id as f_id, f.trip_id as f_trip_id, f.flight_number as f_flight_number,
+          f.airline as f_airline, f.airline_code as f_airline_code,
+          f.departure_airport as f_departure_airport, f.departure_code as f_departure_code,
+          f.departure_time as f_departure_time,
+          f.arrival_airport as f_arrival_airport, f.arrival_code as f_arrival_code,
+          f.arrival_time as f_arrival_time,
+          f.price as f_price, f.currency as f_currency,
+          f.status as f_status, f.created_by as f_created_by,
+          u.first_name as inviter_first_name, u.last_name as inviter_last_name, u.username as inviter_username
+        FROM flight_rsvps fr
+        JOIN flights f ON fr.flight_id = f.id
+        JOIN users u ON f.created_by = u.id
+        WHERE fr.user_id = $1 
+          AND f.trip_id = $2 
+          AND fr.status = 'pending'
+          AND f.status = 'scheduled'
+          AND f.created_by != $1
+        ORDER BY fr.created_at DESC`,
+        [userId, tripId]
+      );
 
-    return rows.map(row => ({
-      rsvp: {
-        id: row.rsvp_id,
-        flightId: row.flight_id,
-        userId: row.user_id,
-        status: row.status as 'pending' | 'accepted' | 'declined',
-        respondedAt: row.responded_at,
-        createdAt: row.rsvp_created_at,
-        updatedAt: row.rsvp_updated_at,
-      },
-      flight: {
-        id: row.f_id,
-        tripId: row.f_trip_id,
-        flightNumber: row.f_flight_number,
-        airline: row.f_airline,
-        airlineCode: row.f_airline_code,
-        departureAirport: row.f_departure_airport,
-        departureCode: row.f_departure_code,
-        departureTime: row.f_departure_time,
-        arrivalAirport: row.f_arrival_airport,
-        arrivalCode: row.f_arrival_code,
-        arrivalTime: row.f_arrival_time,
-        price: row.f_price,
-        currency: row.f_currency,
-        status: row.f_status,
-        createdBy: row.f_created_by,
-      } as Flight,
-      inviterName: row.inviter_first_name 
-        ? `${row.inviter_first_name}${row.inviter_last_name ? ' ' + row.inviter_last_name : ''}`
-        : row.inviter_username || 'Someone',
-    }));
+      return rows.map(row => ({
+        rsvp: {
+          id: row.rsvp_id,
+          flightId: row.flight_id,
+          userId: row.user_id,
+          status: row.status as 'pending' | 'accepted' | 'declined',
+          respondedAt: row.responded_at,
+          createdAt: row.rsvp_created_at,
+          updatedAt: row.rsvp_updated_at,
+        },
+        flight: {
+          id: row.f_id,
+          tripId: row.f_trip_id,
+          flightNumber: row.f_flight_number,
+          airline: row.f_airline,
+          airlineCode: row.f_airline_code,
+          departureAirport: row.f_departure_airport,
+          departureCode: row.f_departure_code,
+          departureTime: row.f_departure_time,
+          arrivalAirport: row.f_arrival_airport,
+          arrivalCode: row.f_arrival_code,
+          arrivalTime: row.f_arrival_time,
+          price: row.f_price,
+          currency: row.f_currency,
+          status: row.f_status,
+          createdBy: row.f_created_by,
+        } as Flight,
+        inviterName: row.inviter_first_name 
+          ? `${row.inviter_first_name}${row.inviter_last_name ? ' ' + row.inviter_last_name : ''}`
+          : row.inviter_username || 'Someone',
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes('relation "flight_rsvps" does not exist')) {
+        throw error;
+      }
+      return [];
+    }
   }
 
   async createRestaurant(
@@ -13055,8 +13063,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
     }
 
     const { rows: existingLinks } = await query<{ scheduled_id: number }>(
-      `SELECT scheduled_id FROM proposal_scheduled_links 
-       WHERE proposal_type = 'flight' AND proposal_id = $1 AND scheduled_type = 'flight'`,
+      `SELECT scheduled_id FROM proposal_schedule_links 
+       WHERE proposal_type = 'flight' AND proposal_id = $1 AND scheduled_table = 'flights'`,
       [proposalId]
     );
     
@@ -13111,8 +13119,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
       }
 
       await query(
-        `INSERT INTO proposal_scheduled_links (proposal_type, proposal_id, scheduled_type, scheduled_id)
-         VALUES ('flight', $1, 'flight', $2)
+        `INSERT INTO proposal_schedule_links (proposal_type, proposal_id, scheduled_table, scheduled_id)
+         VALUES ('flight', $1, 'flights', $2)
          ON CONFLICT DO NOTHING`,
         [proposalId, flightId]
       );
