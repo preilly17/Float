@@ -2310,6 +2310,10 @@ export class DatabaseStorage implements IStorage {
 
   private proposalLinksInitialized = false;
 
+  private proposalCreatorCompatInitPromise: Promise<void> | null = null;
+
+  private proposalCreatorCompatInitialized = false;
+
   private activityStatusInitPromise: Promise<void> | null = null;
 
   private activityStatusColumnInitialized = false;
@@ -2670,6 +2674,9 @@ export class DatabaseStorage implements IStorage {
         users: ["id", "email"],
         activities: ["id", "posted_by"],
         activity_comments: ["id", "activity_id", "user_id"],
+        hotel_proposals: ["id", "trip_id"],
+        flight_proposals: ["id", "trip_id"],
+        restaurant_proposals: ["id", "trip_id"],
         hotels: ["id", "trip_id"],
         packing_items: ["id", "trip_id"],
       };
@@ -2700,6 +2707,9 @@ export class DatabaseStorage implements IStorage {
           ["title", "name"],
         ],
         activity_comments: [["comment", "content"]],
+        hotel_proposals: [["created_by", "proposed_by"]],
+        flight_proposals: [["created_by", "proposed_by"]],
+        restaurant_proposals: [["created_by", "proposed_by"]],
         hotels: [["created_by", "user_id"]],
         packing_items: [
           ["created_by", "user_id"],
@@ -2995,6 +3005,75 @@ export class DatabaseStorage implements IStorage {
       await this.proposalLinksInitPromise;
     } finally {
       this.proposalLinksInitPromise = null;
+    }
+  }
+
+  private async ensureProposalCreatorCompatibility(): Promise<void> {
+    if (this.proposalCreatorCompatInitialized) {
+      return;
+    }
+
+    if (this.proposalCreatorCompatInitPromise) {
+      await this.proposalCreatorCompatInitPromise;
+      return;
+    }
+
+    this.proposalCreatorCompatInitPromise = (async () => {
+      const proposalTables = [
+        "hotel_proposals",
+        "flight_proposals",
+        "restaurant_proposals",
+      ] as const;
+
+      for (const tableName of proposalTables) {
+        const { rows } = await query<{ column_name: string }>(
+          `
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = $1
+          `,
+          [tableName],
+        );
+
+        if (rows.length === 0) {
+          continue;
+        }
+
+        const columnNames = new Set(rows.map((row) => row.column_name));
+        const hasCreatedBy = columnNames.has("created_by");
+        const hasProposedBy = columnNames.has("proposed_by");
+
+        if (!hasCreatedBy && hasProposedBy) {
+          await query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS created_by TEXT`);
+        }
+
+        if (!hasProposedBy && hasCreatedBy) {
+          await query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS proposed_by TEXT`);
+        }
+
+        await query(`
+          UPDATE ${tableName}
+          SET created_by = proposed_by
+          WHERE created_by IS NULL
+            AND proposed_by IS NOT NULL
+        `);
+
+        await query(`
+          UPDATE ${tableName}
+          SET proposed_by = created_by
+          WHERE proposed_by IS NULL
+            AND created_by IS NOT NULL
+        `);
+      }
+
+      this.proposalCreatorCompatInitialized = true;
+    })();
+
+    try {
+      await this.proposalCreatorCompatInitPromise;
+    } finally {
+      this.proposalCreatorCompatInitPromise = null;
     }
   }
 
@@ -11280,6 +11359,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
       proposedBy?: string;
     },
   ): Promise<HotelProposalWithDetails[]> {
+    await this.ensureProposalCreatorCompatibility();
+
     const conditions: string[] = [];
     const values: unknown[] = [];
     let index = 1;
@@ -11400,6 +11481,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
       proposedBy?: string;
     },
   ): Promise<FlightProposalWithDetails[]> {
+    await this.ensureProposalCreatorCompatibility();
+
     const conditions: string[] = [];
     const values: unknown[] = [];
     let index = 1;
@@ -11529,6 +11612,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
       currentUserId?: string;
     },
   ): Promise<RestaurantProposalWithDetails[]> {
+    await this.ensureProposalCreatorCompatibility();
+
     const conditions: string[] = [];
     const values: unknown[] = [];
     let index = 1;
@@ -11739,6 +11824,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
     proposal: InsertHotelProposal,
     userId: string,
   ): Promise<HotelProposalWithDetails> {
+    await this.ensureProposalCreatorCompatibility();
+
     const { rows } = await query<HotelProposalRow>(
       `
       INSERT INTO hotel_proposals (
@@ -12343,6 +12430,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
     proposal: InsertFlightProposal,
     userId: string,
   ): Promise<FlightProposalWithDetails> {
+    await this.ensureProposalCreatorCompatibility();
+
     const { rows } = await query<FlightProposalRow>(
       `
       INSERT INTO flight_proposals (
@@ -13729,6 +13818,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
     proposal: InsertRestaurantProposal,
     userId: string,
   ): Promise<RestaurantProposalWithDetails> {
+    await this.ensureProposalCreatorCompatibility();
+
     const { rows } = await query<RestaurantProposalRow>(
       `
       INSERT INTO restaurant_proposals (
