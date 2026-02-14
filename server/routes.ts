@@ -887,7 +887,7 @@ export function setupRoutes(app: Express) {
   });
 
   // Auth user endpoint with development bypass and custom auth support
-  app.get('/api/auth/user', async (req: any, res) => {
+  const handleAuthUser = async (req: any, res: any) => {
     try {
       // Check for custom auth session first
       if (req.session?.userId && req.session?.authProvider === 'custom') {
@@ -975,7 +975,10 @@ export function setupRoutes(app: Express) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
-  });
+  };
+
+  app.get('/api/auth/user', handleAuthUser);
+  app.get('/api/auth/me', handleAuthUser);
 
   // Profile update endpoint
   app.put('/api/profile', async (req: any, res) => {
