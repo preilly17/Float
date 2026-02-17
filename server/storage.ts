@@ -12429,10 +12429,11 @@ ${selectUserColumns("participant_user", "participant_user_")}
       await this.createHotelRsvpsForTripMembers(hotel.id, proposal.tripId, currentUserId, rankerIds);
       
       await query(
-        `INSERT INTO proposal_schedule_links (proposal_type, proposal_id, scheduled_id)
-         VALUES ('hotel', $1, $2)
-         ON CONFLICT (proposal_type, proposal_id, scheduled_id) DO NOTHING`,
-        [proposalId, hotel.id]
+        `INSERT INTO proposal_schedule_links (proposal_type, proposal_id, scheduled_table, scheduled_id, trip_id)
+         VALUES ('hotel', $1, 'hotels', $2, $3)
+         ON CONFLICT (proposal_type, proposal_id, scheduled_table, scheduled_id) DO UPDATE
+         SET trip_id = COALESCE(proposal_schedule_links.trip_id, EXCLUDED.trip_id)`,
+        [proposalId, hotel.id, proposal.tripId]
       );
     }
 
