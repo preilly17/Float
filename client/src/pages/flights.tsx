@@ -112,6 +112,27 @@ const parseApiErrorResponse = (
   return null;
 };
 
+const extractApiErrorMessage = (error: unknown): string | null => {
+  const parsed = parseApiErrorResponse(error);
+  if (parsed?.data && typeof parsed.data === "object") {
+    const candidate = (parsed.data as { message?: unknown; error?: unknown }).message ??
+      (parsed.data as { message?: unknown; error?: unknown }).error;
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate;
+    }
+  }
+
+  if (error instanceof Error) {
+    if (error.message.toLowerCase().includes("network/cors/api url issue")) {
+      return "Network/CORS/API URL issue";
+    }
+    return error.message;
+  }
+
+  return null;
+};
+
+
 // Helper function to get flight status color
 function getFlightStatusColor(status: string): string {
   switch (status) {
@@ -2666,7 +2687,14 @@ export default function FlightsPage() {
       });
     },
     onError: (error: unknown) => {
+      console.error("[flight-submit][schedule-invite] failed", {
+        mode: "SAVE",
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
       const parsed = parseApiErrorResponse(error);
+      const realMessage = extractApiErrorMessage(error);
 
       if (parsed?.status === 400) {
         const nextErrors: ManualFlightFormErrors = {};
@@ -2718,7 +2746,7 @@ export default function FlightsPage() {
 
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add flight",
+        description: realMessage ?? "Failed to add flight",
         variant: "destructive",
       });
     },
@@ -2757,6 +2785,14 @@ export default function FlightsPage() {
       });
     },
     onError: (error: unknown) => {
+      console.error("[flight-submit][float-to-group] failed", {
+        mode: "PROPOSE",
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      const realMessage = extractApiErrorMessage(error);
+
       if (isUnauthorizedError(error as Error)) {
         toast({
           title: "Unauthorized",
@@ -2767,7 +2803,7 @@ export default function FlightsPage() {
       }
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to propose flight",
+        description: realMessage ?? "Failed to propose flight",
         variant: "destructive",
       });
     },
@@ -3360,8 +3396,18 @@ export default function FlightsPage() {
       });
     } else if (flightMode === 'PROPOSE') {
       const votingDeadline = manualFlightForm.votingDeadline ? new Date(manualFlightForm.votingDeadline).toISOString() : undefined;
+      console.info("[flight-submit] manual submit", {
+        mode: "PROPOSE",
+        endpoint: `/api/trips/${tripId}/flight-proposals`,
+        payloadKeys: Object.keys({ ...manualPayload, votingDeadline }),
+      });
       proposeFlightMutation.mutate({ ...manualPayload, votingDeadline });
     } else {
+      console.info("[flight-submit] manual submit", {
+        mode: "SAVE",
+        endpoint: `/api/trips/${tripId}/flights`,
+        payloadKeys: Object.keys(manualPayload),
+      });
       createFlightMutation.mutate(manualPayload);
     }
   };
