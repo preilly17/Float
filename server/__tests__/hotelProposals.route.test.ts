@@ -210,6 +210,30 @@ describe("POST /api/trips/:tripId/proposals/hotels", () => {
     );
   });
 
+
+  it("rejects proposing a scheduled stay", async () => {
+    ensureHotelProposalMock.mockRejectedValueOnce(new Error("Scheduled stays cannot be proposed"));
+
+    const req: any = {
+      params: { tripId: "10" },
+      body: { hotelId: 77 },
+      session: { userId: "test-user" },
+      user: { id: "test-user" },
+      headers: {},
+      get: jest.fn(),
+      header: jest.fn(),
+    };
+
+    const res = createMockResponse();
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: "Scheduled stays cannot be proposed",
+    });
+  });
+
   it("returns a 400 with details when the saved stay is missing required data", async () => {
     ensureHotelProposalMock.mockRejectedValueOnce(
       new Error(

@@ -2468,6 +2468,17 @@ export class DatabaseStorage implements IStorage {
           AND created_by IS NOT NULL
       `);
 
+      await query(`
+        UPDATE hotels h
+        SET status = 'scheduled'
+        WHERE COALESCE(LOWER(TRIM(h.status)), '') = 'proposed'
+          AND EXISTS (
+            SELECT 1
+            FROM hotel_rsvps hr
+            WHERE hr.hotel_id = h.id
+          )
+      `);
+
       this.hotelsCreatorCompatInitialized = true;
     })();
 
@@ -9166,6 +9177,11 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
       if (normalizedHotelTripId !== tripId) {
         throw new Error("Hotel does not belong to this trip");
+      }
+
+      const normalizedHotelStatus = (hotel.status ?? "").toString().trim().toLowerCase();
+      if (normalizedHotelStatus === "scheduled") {
+        throw new Error("Scheduled stays cannot be proposed");
       }
 
       const normalizedRequesterId = normalizeUserId(currentUserId);

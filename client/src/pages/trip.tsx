@@ -6454,6 +6454,11 @@ function formatList(items: string[]): string {
 }
 
 function canShareHotelWithGroup(hotel: HotelWithDetails): boolean {
+  const normalizedHotelStatus = (hotel.status ?? "").trim().toLowerCase();
+  if (normalizedHotelStatus !== "proposed") {
+    return false;
+  }
+
   if (!hotel.proposalId) {
     return true;
   }
@@ -6468,6 +6473,30 @@ function canShareHotelWithGroup(hotel: HotelWithDetails): boolean {
   }
 
   return !SHARE_BLOCKING_STATUSES.has(normalizedStatus);
+}
+
+function getHotelLifecycleStatus(hotel: HotelWithDetails): "scheduled" | "proposed" | "unknown" {
+  const normalizedStatus = (hotel.status ?? "").trim().toLowerCase();
+  if (normalizedStatus === "scheduled") {
+    return "scheduled";
+  }
+  if (normalizedStatus === "proposed") {
+    return "proposed";
+  }
+
+  return "unknown";
+}
+
+function getHotelLifecycleStatusLabel(hotel: HotelWithDetails): string {
+  const lifecycleStatus = getHotelLifecycleStatus(hotel);
+  if (lifecycleStatus === "scheduled") {
+    return "Scheduled";
+  }
+  if (lifecycleStatus === "proposed") {
+    return "Proposed";
+  }
+
+  return "Unknown";
 }
 
 // Hotel Booking Component
@@ -6742,6 +6771,19 @@ function HotelBooking({
         toast({
           title: "Not allowed",
           description: "Only the stay creator or a trip editor can propose this stay.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const lifecycleStatus = getHotelLifecycleStatus(hotel);
+      if (lifecycleStatus !== "proposed") {
+        toast({
+          title: "Cannot float this lodging",
+          description:
+            lifecycleStatus === "scheduled"
+              ? "Scheduled lodging cannot be converted into a proposal."
+              : "Lodging status is unknown, so proposal actions are disabled.",
           variant: "destructive",
         });
         return;
@@ -7033,9 +7075,9 @@ function HotelBooking({
 
     if (hotelMode === "PROPOSE") {
       const votingDeadline = hotelVotingDeadline ? new Date(hotelVotingDeadline).toISOString() : undefined;
-      proposeNewHotelMutation.mutate({ ...payload, votingDeadline });
+      proposeNewHotelMutation.mutate({ ...payload, status: "proposed", votingDeadline });
     } else {
-      createHotelMutation.mutate(payload);
+      createHotelMutation.mutate({ ...payload, status: "scheduled" });
     }
   };
 
@@ -7200,11 +7242,10 @@ function HotelBooking({
                       fallback: "",
                     })
                   : null;
-                const statusLabel = hotel.status
-                  ? hotel.status.charAt(0).toUpperCase() + hotel.status.slice(1)
-                  : null;
+                const statusLabel = getHotelLifecycleStatusLabel(hotel);
                 const canShareWithGroup = canShareHotelWithGroup(hotel);
                 const userCanManage = canManageHotel(hotel);
+                const showProposeAction = userCanManage && canShareWithGroup;
                 const proposalStatusLabel = hotel.proposalStatus
                   ? hotel.proposalStatus.charAt(0).toUpperCase() + hotel.proposalStatus.slice(1)
                   : null;
@@ -7223,11 +7264,9 @@ function HotelBooking({
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span>{hotel.hotelName || "Hotel"}</span>
-                          {statusLabel ? (
-                            <Badge variant="outline" className="capitalize border-border/70 text-foreground/80">
-                              {statusLabel}
-                            </Badge>
-                          ) : null}
+                          <Badge variant="outline" className="capitalize border-border/70 text-foreground/80">
+                            {statusLabel}
+                          </Badge>
                           {proposalStatusLabel ? (
                             <Badge
                               variant={canShareWithGroup ? "outline" : "secondary"}
@@ -7255,26 +7294,25 @@ function HotelBooking({
                         </Button>
                         {userCanManage ? (
                           <>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleProposeHotel(hotel)}
-                              disabled={
-                                !canShareWithGroup ||
-                                (proposeHotelMutation.isPending && proposingHotelId === hotel.id)
-                              }
-                            >
-                              {proposeHotelMutation.isPending && proposingHotelId === hotel.id ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Proposing...
-                                </>
-                              ) : canShareWithGroup ? (
-                                hotel.proposalId ? "Send to Group" : "Float to Group"
-                              ) : (
-                                "Shared with Group"
-                              )}
-                            </Button>
+                            {showProposeAction ? (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleProposeHotel(hotel)}
+                                disabled={proposeHotelMutation.isPending && proposingHotelId === hotel.id}
+                              >
+                                {proposeHotelMutation.isPending && proposingHotelId === hotel.id ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Proposing...
+                                  </>
+                                ) : hotel.proposalId ? (
+                                  "Send to Group"
+                                ) : (
+                                  "Float to Group"
+                                )}
+                              </Button>
+                            ) : null}
                             {missingFieldsMessage ? (
                               <p className="text-xs text-muted-foreground">
                                 {missingFieldsMessage}
@@ -8514,4 +8552,3 @@ function WeatherReport({ trip }: { trip: TripWithDetails }) {
     </div>
   );
 }
-
