@@ -4,6 +4,19 @@ import { buildApiUrl } from "./api";
 const shouldLogApiDebug =
   import.meta.env.DEV || import.meta.env.VITE_DEBUG_API === "true";
 
+const redactHeaders = (headers: Record<string, string>): Record<string, string> => {
+  const SENSITIVE_HEADERS = new Set(["authorization", "cookie", "set-cookie", "x-auth-token"]);
+
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => {
+      if (SENSITIVE_HEADERS.has(key.toLowerCase())) {
+        return [key, "[REDACTED]"];
+      }
+      return [key, value];
+    }),
+  );
+};
+
 const sanitizePayload = (value: unknown): unknown => {
   if (value === null || value === undefined) {
     return value;
@@ -144,13 +157,21 @@ export async function apiRequest(
   }
 
   try {
-    if (shouldLogApiDebug) {
-      console.info("[apiRequest] Request", {
-        url: requestUrl,
-        method: options.method,
-        payload: sanitizePayload(body),
-      });
-    }
+    const payloadKeys = (() => {
+      const sanitized = sanitizePayload(body);
+      if (sanitized && typeof sanitized === "object" && !Array.isArray(sanitized)) {
+        return Object.keys(sanitized as Record<string, unknown>);
+      }
+      return [];
+    })();
+
+    console.info("[apiRequest] Request", {
+      url: requestUrl,
+      method: options.method,
+      headers: redactHeaders(headers),
+      payloadKeys,
+      payload: shouldLogApiDebug ? sanitizePayload(body) : undefined,
+    });
 
     const res = await fetch(requestUrl, {
       method: options.method,
@@ -159,22 +180,30 @@ export async function apiRequest(
       credentials: "include",
     });
 
-    if (shouldLogApiDebug && !res.ok) {
-      const responseClone = res.clone();
-      let responseBody: unknown = null;
-      try {
-        const responseText = await responseClone.text();
-        if (responseText) {
-          try {
-            responseBody = JSON.parse(responseText);
-          } catch {
-            responseBody = responseText;
-          }
+    const responseClone = res.clone();
+    let responseBody: unknown = null;
+    try {
+      const responseText = await responseClone.text();
+      if (responseText) {
+        try {
+          responseBody = JSON.parse(responseText);
+        } catch {
+          responseBody = responseText;
         }
-      } catch {
-        responseBody = "[unreadable-response-body]";
       }
+    } catch {
+      responseBody = "[unreadable-response-body]";
+    }
 
+    console.info("[apiRequest] Response", {
+      url: requestUrl,
+      method: options.method,
+      status: res.status,
+      statusText: res.statusText,
+      body: sanitizePayload(responseBody),
+    });
+
+    if (shouldLogApiDebug && !res.ok) {
       console.error("[apiRequest] Response error", {
         url: requestUrl,
         method: options.method,
@@ -207,20 +236,23 @@ export async function apiRequest(
 
     return res;
   } catch (error) {
-    if (shouldLogApiDebug) {
-      console.error("[apiRequest] Exception", {
-        url: requestUrl,
-        method: options.method,
-        stack: error instanceof Error ? error.stack : error,
-      });
-    }
+    console.error("[apiRequest] Exception", {
+      url: requestUrl,
+      method: options.method,
+      error,
+      stack: error instanceof Error ? error.stack : error,
+    });
 
     if (error instanceof ApiError) {
       throw error;
     }
 
     if (error instanceof Error) {
-      throw new Error("We couldn’t reach the server. Check your connection and try again.");
+      const normalizedMessage = error.message.toLowerCase();
+      if (normalizedMessage.includes("failed to fetch") || normalizedMessage.includes("networkerror")) {
+        throw new Error("Network/CORS/API URL issue: failed to reach server.");
+      }
+      throw new Error(`Network/CORS/API URL issue: ${error.message}`);
     }
 
     throw error;
