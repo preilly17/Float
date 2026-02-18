@@ -1046,6 +1046,8 @@ function ProposalsPage({
       if (!tripId) return;
       queryClient.invalidateQueries({ queryKey: [`/api/trips/${tripId}/hotel-proposals`] });
       queryClient.invalidateQueries({ queryKey: [`/api/trips/${tripId}/hotel-proposals?mineOnly=true`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/trips/${tripId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/trips/${tripId}/hotels`] });
       toast({
         title: "Hotel scheduled!",
         description: `${proposal.hotelName} has been added to the calendar.`,
