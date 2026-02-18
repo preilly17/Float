@@ -11884,16 +11884,20 @@ ${selectUserColumns("participant_user", "participant_user_")}
       rankingRows = result.rows;
     } catch (error) {
       const maybePgError = error as { code?: string; message?: string };
+      const isSchemaCompatError =
+        maybePgError.code === "42P01" ||
+        maybePgError.code === "42703" ||
+        maybePgError.code === "42501";
       const isRankParserError =
         maybePgError.code === "42809" &&
         typeof maybePgError.message === "string" &&
         maybePgError.message.includes("WITHIN GROUP") &&
         maybePgError.message.includes("rank");
-      if (!isRankParserError) {
+      if (!isRankParserError && !isSchemaCompatError) {
         throw error;
       }
       console.warn(
-        "[schema-compat] Skipping flight ranking rows due to Postgres rank parser error",
+        "[schema-compat] Skipping flight ranking rows due to ranking schema mismatch",
       );
     }
 
@@ -11994,26 +11998,40 @@ ${selectUserColumns("participant_user", "participant_user_")}
 
     const proposalIds = rows.map((row) => row.id);
 
-    const { rows: rankingRows } = await query<
-      RestaurantRankingWithUserRow & { ranking_value: number | string }
-    >(
-      `
-      SELECT
-        rr.id,
-        rr.proposal_id,
-        rr.user_id,
-        rr.ranking AS ranking_value,
-        NULL AS notes,
-        rr.created_at,
-        rr.updated_at,
-        ${selectUserColumns("u", "user_")}
-      FROM restaurant_rankings rr
-      JOIN users u ON u.id = rr.user_id
-      WHERE rr.proposal_id = ANY($1::int[])
-      ORDER BY rr.created_at ASC NULLS LAST, rr.id ASC
-      `,
-      [proposalIds],
-    );
+    let rankingRows: (RestaurantRankingWithUserRow & { ranking_value: number | string })[] = [];
+    try {
+      const result = await query<RestaurantRankingWithUserRow & { ranking_value: number | string }>(
+        `
+        SELECT
+          rr.id,
+          rr.proposal_id,
+          rr.user_id,
+          rr.ranking AS ranking_value,
+          NULL AS notes,
+          rr.created_at,
+          rr.updated_at,
+          ${selectUserColumns("u", "user_")}
+        FROM restaurant_rankings rr
+        JOIN users u ON u.id = rr.user_id
+        WHERE rr.proposal_id = ANY($1::int[])
+        ORDER BY rr.created_at ASC NULLS LAST, rr.id ASC
+        `,
+        [proposalIds],
+      );
+      rankingRows = result.rows;
+    } catch (error) {
+      const maybePgError = error as { code?: string };
+      const isSchemaCompatError =
+        maybePgError.code === "42P01" ||
+        maybePgError.code === "42703" ||
+        maybePgError.code === "42501";
+      if (!isSchemaCompatError) {
+        throw error;
+      }
+      console.warn(
+        "[schema-compat] Skipping restaurant ranking rows due to ranking schema mismatch",
+      );
+    }
 
     const rankingsByProposal = new Map<number, (RestaurantRanking & { user: User })[]>();
     for (const row of rankingRows) {

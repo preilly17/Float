@@ -5098,11 +5098,31 @@ export function setupRoutes(app: Express) {
         return res.status(401).json({ message: "User ID not found" });
       }
 
+      const trip = await storage.getTripById(tripId);
+      if (!trip) {
+        return res.status(404).json({ message: "Trip not found" });
+      }
+
+      const isMember = trip.createdBy === userId || trip.members.some((member) => member.userId === userId);
+      if (!isMember) {
+        return res.status(403).json({ message: "You are no longer a member of this trip" });
+      }
+
       const proposals = await storage.getTripFlightProposals(tripId, userId);
       res.json(proposals);
     } catch (error: unknown) {
-      console.error("Error fetching flight proposals:", error);
-      res.status(500).json({ message: "Failed to fetch flight proposals" });
+      const userId = getRequestUserId(req) ?? null;
+      const tripId = Number.parseInt(req.params.id, 10);
+      const safeMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Error fetching flight proposals", {
+        tripId: Number.isFinite(tripId) ? tripId : req.params.id,
+        userId,
+        stack: error instanceof Error ? error.stack : error,
+      });
+      res.status(500).json({
+        error: "flight-proposals failed",
+        details: safeMessage,
+      });
     }
   });
 
@@ -5116,6 +5136,16 @@ export function setupRoutes(app: Express) {
       const userId = getRequestUserId(req);
       if (!userId) {
         return res.status(401).json({ message: "User ID not found" });
+      }
+
+      const trip = await storage.getTripById(tripId);
+      if (!trip) {
+        return res.status(404).json({ message: "Trip not found" });
+      }
+
+      const isMember = trip.createdBy === userId || trip.members.some((member) => member.userId === userId);
+      if (!isMember) {
+        return res.status(403).json({ message: "You are no longer a member of this trip" });
       }
 
       // Validate that departure and arrival times are provided
@@ -5296,11 +5326,31 @@ export function setupRoutes(app: Express) {
         return res.status(401).json({ message: "User ID not found" });
       }
 
+      const trip = await storage.getTripById(tripId);
+      if (!trip) {
+        return res.status(404).json({ message: "Trip not found" });
+      }
+
+      const isMember = trip.createdBy === userId || trip.members.some((member) => member.userId === userId);
+      if (!isMember) {
+        return res.status(403).json({ message: "You are no longer a member of this trip" });
+      }
+
       const proposals = await storage.getTripRestaurantProposals(tripId, userId);
       res.json(proposals);
     } catch (error: unknown) {
-      console.error("Error fetching restaurant proposals:", error);
-      res.status(500).json({ message: "Failed to fetch restaurant proposals" });
+      const userId = getRequestUserId(req) ?? null;
+      const tripId = Number.parseInt(req.params.id, 10);
+      const safeMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Error fetching restaurant proposals", {
+        tripId: Number.isFinite(tripId) ? tripId : req.params.id,
+        userId,
+        stack: error instanceof Error ? error.stack : error,
+      });
+      res.status(500).json({
+        error: "restaurant-proposals failed",
+        details: safeMessage,
+      });
     }
   });
 
