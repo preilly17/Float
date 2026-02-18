@@ -14340,6 +14340,12 @@ ${selectUserColumns("participant_user", "participant_user_")}
       throw new Error("Restaurant proposal not found");
     }
 
+    const proposerId = normalizeUserId(proposal.proposedBy);
+    const requesterId = normalizeUserId(currentUserId);
+    if (!proposerId || !requesterId || proposerId !== requesterId) {
+      throw new Error("Only the proposal creator can convert this proposal");
+    }
+
     if (status === "scheduled") {
       const preferredDates = proposal.preferredDates as string[] | null;
       const preferredMealTime = proposal.preferredMealTime as string | null;
@@ -14386,6 +14392,14 @@ ${selectUserColumns("participant_user", "participant_user_")}
           [restaurant.id, memberId]
         );
       }
+
+      await query(
+        `INSERT INTO proposal_schedule_links (proposal_type, proposal_id, scheduled_table, scheduled_id, trip_id)
+         VALUES ('restaurant', $1, 'restaurants', $2, $3)
+         ON CONFLICT (proposal_type, proposal_id, scheduled_table, scheduled_id) DO UPDATE
+         SET trip_id = COALESCE(proposal_schedule_links.trip_id, EXCLUDED.trip_id)`,
+        [proposalId, restaurant.id, proposal.tripId]
+      );
     }
 
     const { rows } = await query<RestaurantProposalRow>(
