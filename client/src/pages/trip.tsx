@@ -5228,7 +5228,11 @@ function FlightCoordination({
     const normalizedFlightNumber = manualFlightData.flightNumber.trim().toUpperCase();
     const normalizedAirline = manualFlightData.airline.trim();
     const airlineCodeFromFlightNumber = (value: string): string | null => {
-      const match = value.match(/^([A-Z0-9]{2,3})\d+/);
+      // Strip internal whitespace so "AA 123" and "B6 1234" parse correctly
+      const compact = value.replace(/\s+/g, '');
+      // Use lazy quantifier so 2-char alphanumeric codes like "B6" are preferred
+      // over a greedy 3-char match that would incorrectly return "B61" for "B61234"
+      const match = compact.match(/^([A-Z][A-Z0-9]{1,2}?)\d+/);
       return match ? match[1] : null;
     };
 
@@ -6052,7 +6056,8 @@ function FlightCoordination({
                     const selectedDepartureCode = (
                       location.iata ??
                       location.icao ??
-                      location.code ??
+                      // Use || so an empty string falls through to the next candidate
+                      (location.code || null) ??
                       location.airports?.find((airportCode) => /^[A-Z0-9]{3,4}$/i.test(airportCode)) ??
                       extractAirportCode(location.displayName ?? location.name ?? undefined) ??
                       ''
@@ -6087,7 +6092,8 @@ function FlightCoordination({
                     const selectedArrivalCode = (
                       location.iata ??
                       location.icao ??
-                      location.code ??
+                      // Use || so an empty string falls through to the next candidate
+                      (location.code || null) ??
                       location.airports?.find((airportCode) => /^[A-Z0-9]{3,4}$/i.test(airportCode)) ??
                       extractAirportCode(location.displayName ?? location.name ?? undefined) ??
                       ''
