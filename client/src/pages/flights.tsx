@@ -296,11 +296,41 @@ const parseManualAirlineFlight = (value: string): ParsedAirlineFlight | null => 
 
   const flightTokenIndex = tokens.length - 1 - reversedIndex;
   const flightToken = tokens[flightTokenIndex];
-  const letterPart = flightToken.match(/[A-Za-z]+/g)?.join('') ?? '';
-  const digitPart = flightToken.match(/\d+/g)?.join('') ?? '';
+  const compactFlightToken = flightToken.replace(/\s+/g, '');
+  const tokenMatch = compactFlightToken.match(/^([A-Za-z0-9]{1,3})?(\d+)$/);
+  const prefixPart = tokenMatch?.[1] ?? '';
+  const digitPart = tokenMatch?.[2] ?? (flightToken.match(/\d+/g)?.join('') ?? '');
 
-  const airlineCodeCandidate = letterPart.slice(0, 2).toUpperCase();
-  if (!/^[A-Z]{2}$/.test(airlineCodeCandidate) || digitPart.length === 0) {
+  let airlineCodeCandidate = prefixPart.slice(0, 2).toUpperCase();
+
+  if (!/^[A-Z]{2}$/.test(airlineCodeCandidate)) {
+    const previousToken = tokens[flightTokenIndex - 1] ?? '';
+    if (/^[A-Za-z]{2}$/.test(previousToken)) {
+      airlineCodeCandidate = previousToken.toUpperCase();
+    }
+  }
+
+  if (!/^[A-Z]{2}$/.test(airlineCodeCandidate) && digitPart.length > 0) {
+    const airlineNameTokens = tokens.slice(0, flightTokenIndex).filter((token) => !/^[A-Za-z]{2}$/.test(token));
+    const normalizedAirlineName = airlineNameTokens.join(' ').trim().toLowerCase();
+
+    if (normalizedAirlineName) {
+      const inferredAirlineCode = Object.entries(AIRLINE_IATA_MAP).find(([, name]) => {
+        const normalizedName = name.toLowerCase();
+        return (
+          normalizedName === normalizedAirlineName ||
+          normalizedName.startsWith(normalizedAirlineName) ||
+          normalizedAirlineName.startsWith(normalizedName)
+        );
+      })?.[0];
+
+      if (inferredAirlineCode) {
+        airlineCodeCandidate = inferredAirlineCode;
+      }
+    }
+  }
+
+  if (!/^[A-Z0-9]{2}$/.test(airlineCodeCandidate) || digitPart.length === 0) {
     return null;
   }
 
