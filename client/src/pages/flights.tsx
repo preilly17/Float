@@ -264,6 +264,15 @@ const parseManualLocationInput = (value: string): { code: string; name: string }
     return { code, name: code };
   }
 
+  const fallbackCode = trimmed
+    .replace(/[^A-Za-z]/g, '')
+    .slice(0, 3)
+    .toUpperCase();
+
+  if (fallbackCode.length === 3) {
+    return { code: fallbackCode, name: trimmed };
+  }
+
   return null;
 };
 
@@ -331,7 +340,11 @@ const parseManualAirlineFlight = (value: string): ParsedAirlineFlight | null => 
   }
 
   if (!/^[A-Z0-9]{2}$/.test(airlineCodeCandidate) || digitPart.length === 0) {
-    return null;
+    if (digitPart.length === 0) {
+      return null;
+    }
+
+    airlineCodeCandidate = 'ZZ';
   }
 
   const airlineCode = airlineCodeCandidate;
