@@ -8636,8 +8636,31 @@ ${selectUserColumns("participant_user", "participant_user_")}
     creatorUserId: string,
     selectedMemberIds?: string[]
   ): Promise<void> {
+    const { rows: memberColumnRows } = await query<{ column_name: string }>(
+      `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'trip_members'
+      `,
+    );
+
+    const memberColumnNames = new Set(
+      memberColumnRows.map(({ column_name }) => column_name),
+    );
+
+    const tripReferenceColumn = memberColumnNames.has("trip_calendar_id")
+      ? "trip_calendar_id"
+      : memberColumnNames.has("trip_id")
+        ? "trip_id"
+        : null;
+
+    if (!tripReferenceColumn) {
+      throw new Error("trip_members table is missing a trip reference column");
+    }
+
     const { rows: tripMembers } = await query<{ user_id: string }>(
-      `SELECT user_id FROM trip_members WHERE trip_calendar_id = $1`,
+      `SELECT user_id FROM trip_members WHERE ${tripReferenceColumn} = $1`,
       [tripId]
     );
     const validTripMemberIds = new Set(tripMembers.map(m => m.user_id));
