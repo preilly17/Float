@@ -61,7 +61,7 @@ const testimonials = [
 ]
 
 const baseCardClass =
-  "rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-cyan-50/50 shadow-sm"
+  "rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-cyan-50/40 to-violet-50/40 shadow-sm"
 
 export default function Landing() {
   const [isScrolled, setIsScrolled] = useState(false)
@@ -76,20 +76,43 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <nav
-        className={`sticky top-0 z-20 border-b transition-all duration-300 ${
-          isScrolled ? "border-slate-200 bg-white/90 backdrop-blur-md" : "border-transparent bg-white/70"
+        className={`sticky top-0 z-30 border-b transition-all duration-300 ${
+          isScrolled
+            ? "border-slate-200/90 bg-white/92 backdrop-blur-xl"
+            : "border-slate-200/60 bg-white/82 backdrop-blur-md"
         }`}
       >
-        <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between px-4 lg:px-8">
-          <div className="flex items-center gap-3">
-            <img src={floatLogo} alt="Float" className="h-11 w-auto" />
-            <span className="text-2xl font-bold tracking-tight text-slate-900">Float</span>
-          </div>
+        <div className="mx-auto flex h-24 w-full max-w-6xl items-center justify-between px-4 lg:px-8">
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="flex items-center gap-3"
+            aria-label="Float home"
+          >
+            <img src={floatLogo} alt="Float" className="h-14 w-auto" />
+            <span className="text-3xl font-bold tracking-tight text-slate-900">Float</span>
+          </button>
 
-          <div className="hidden items-center gap-8 text-sm font-semibold text-slate-600 md:flex">
-            <button onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })} className="transition hover:text-slate-900">Features</button>
-            <button onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })} className="transition hover:text-slate-900">How it works</button>
-            <button onClick={() => document.getElementById("stories")?.scrollIntoView({ behavior: "smooth" })} className="transition hover:text-slate-900">Stories</button>
+          <div className="hidden flex-1 justify-center md:flex">
+            <div className="flex items-center gap-8 text-sm font-semibold text-slate-600">
+              <button
+                onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
+                className="transition hover:text-slate-900"
+              >
+                Features
+              </button>
+              <button
+                onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
+                className="transition hover:text-slate-900"
+              >
+                How it works
+              </button>
+              <button
+                onClick={() => document.getElementById("stories")?.scrollIntoView({ behavior: "smooth" })}
+                className="transition hover:text-slate-900"
+              >
+                Stories
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -115,10 +138,10 @@ export default function Landing() {
           className="relative overflow-hidden bg-cover bg-center"
           style={{ backgroundImage: "url('/landing/beach-hero.svg')" }}
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 via-[60%] to-white/10" />
-          <div className="relative mx-auto grid w-full max-w-6xl gap-8 px-4 pb-16 pt-16 lg:grid-cols-[1.05fr,0.95fr] lg:items-center lg:px-8 lg:pb-20 lg:pt-24">
+          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/92 via-[62%] to-white/20" />
+          <div className="relative mx-auto grid w-full max-w-6xl gap-8 px-4 pb-14 pt-14 md:min-h-[580px] lg:grid-cols-[1.05fr,0.95fr] lg:items-center lg:px-8 lg:pb-16 lg:pt-16">
             <div>
-              <p className="inline-flex rounded-full border border-slate-200 bg-white/90 px-4 py-1 text-sm font-medium text-cyan-700">
+              <p className="inline-flex rounded-full border border-cyan-100 bg-white/95 px-4 py-1 text-sm font-medium text-cyan-800">
                 Group travel made simple
               </p>
               <h1 className="mt-6 max-w-2xl text-4xl font-bold leading-tight text-slate-900 sm:text-5xl">
@@ -149,15 +172,15 @@ export default function Landing() {
               <CardContent className="space-y-4 rounded-2xl bg-white/95 p-5">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700">Thursday · 1:30 PM</p>
-                  <p className="mt-2 font-semibold text-slate-900">Kayak along the coast</p>
+                  <p className="mt-2 text-base font-semibold text-slate-900">Kayak along the coast</p>
                   <p className="mt-1 text-sm text-slate-600">6 going · 2 maybe · calendar synced</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">Friday · 9:00 AM</p>
-                  <p className="mt-2 font-semibold text-slate-900">Local breakfast meetup</p>
+                  <p className="mt-2 text-base font-semibold text-slate-900">Local breakfast meetup</p>
                   <p className="mt-1 text-sm text-slate-600">RSVPs finalized · reminder set</p>
                 </div>
-                <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4 text-sm text-teal-800">
+                <div className="rounded-2xl border border-cyan-100 bg-cyan-50 p-4 text-sm text-slate-700">
                   Product preview: one clean, shared itinerary view for the whole group.
                 </div>
               </CardContent>
@@ -165,18 +188,18 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="how-it-works" className="bg-gradient-to-b from-cyan-50/60 to-white">
-          <div className="mx-auto w-full max-w-6xl px-4 py-12 lg:px-8 lg:py-16">
+        <section id="how-it-works" className="bg-gradient-to-b from-cyan-50/70 to-white">
+          <div className="mx-auto w-full max-w-6xl px-4 py-12 lg:px-8 lg:py-14">
             <h2 className="text-3xl font-bold text-slate-900">How it works</h2>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
               {howItWorks.map(({ title, description, icon: Icon }) => (
                 <Card key={title} className={baseCardClass}>
                   <CardContent className="p-6">
-                    <div className="mb-4 inline-flex rounded-xl bg-cyan-100 p-3 text-cyan-800">
+                    <div className="mb-4 inline-flex rounded-xl border border-cyan-200 bg-cyan-100 p-3 text-cyan-800">
                       <Icon className="h-5 w-5" />
                     </div>
                     <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-                    <p className="mt-2 text-sm text-slate-600">{description}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -184,18 +207,18 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="features" className="bg-gradient-to-b from-white to-violet-50/50">
-          <div className="mx-auto w-full max-w-6xl px-4 py-12 lg:px-8 lg:py-16">
+        <section id="features" className="bg-gradient-to-b from-white to-violet-50/60">
+          <div className="mx-auto w-full max-w-6xl px-4 py-12 lg:px-8 lg:py-14">
             <h2 className="text-3xl font-bold text-slate-900">Why groups choose Float</h2>
             <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {benefits.map(({ title, description, icon: Icon }) => (
                 <Card key={title} className={baseCardClass}>
                   <CardContent className="p-6">
-                    <div className="mb-4 inline-flex rounded-xl bg-violet-100 p-3 text-violet-800">
+                    <div className="mb-4 inline-flex rounded-xl border border-violet-200 bg-violet-100 p-3 text-violet-800">
                       <Icon className="h-5 w-5" />
                     </div>
                     <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-                    <p className="mt-2 text-sm text-slate-600">{description}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -203,8 +226,8 @@ export default function Landing() {
           </div>
         </section>
 
-        <section id="stories" className="bg-gradient-to-b from-cyan-50/50 to-white">
-          <div className="mx-auto w-full max-w-6xl px-4 py-12 lg:px-8 lg:py-16">
+        <section id="stories" className="bg-gradient-to-b from-cyan-50/60 to-white">
+          <div className="mx-auto w-full max-w-6xl px-4 py-12 lg:px-8 lg:py-14">
             <h2 className="text-3xl font-bold text-slate-900">What travelers say</h2>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
               {testimonials.map((item) => (
@@ -219,7 +242,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="bg-gradient-to-b from-white to-violet-50/60">
+        <section className="bg-gradient-to-b from-white to-violet-50/70">
           <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-8 lg:px-8">
             <div className="rounded-[28px] border border-slate-200 bg-gradient-to-r from-cyan-50 via-white to-violet-50 px-6 py-12 text-center shadow-sm">
               <h2 className="text-3xl font-bold text-slate-900">Ready to plan your next group trip?</h2>
