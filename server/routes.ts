@@ -5221,16 +5221,19 @@ export function setupRoutes(app: Express) {
   });
 
   app.post('/api/trips/:id/flight-proposals', isAuthenticated, async (req: any, res) => {
+    let userId: string | undefined;
+    const tripId = Number.parseInt(req.params.id, 10);
     try {
-      const tripId = Number.parseInt(req.params.id, 10);
       if (Number.isNaN(tripId)) {
         return res.status(400).json({ message: "Invalid trip id" });
       }
 
-      const userId = getRequestUserId(req);
+      userId = getRequestUserId(req);
       if (!userId) {
         return res.status(401).json({ message: "User ID not found" });
       }
+
+      await ensureRequestUserExists(req, userId);
 
       const trip = await storage.getTripById(tripId);
       if (!trip) {
@@ -5281,7 +5284,24 @@ export function setupRoutes(app: Express) {
         triggeredBy: userId,
       });
     } catch (error: unknown) {
-      console.error("Error creating flight proposal:", error);
+      const postgresError = error as PostgresError & {
+        constraint?: string;
+        table?: string;
+        column?: string;
+      };
+      console.error("Error creating flight proposal", {
+        endpoint: "POST /api/trips/:id/flight-proposals",
+        tripId: Number.isFinite(tripId) ? tripId : req.params.id,
+        userId: userId ?? null,
+        message: error instanceof Error ? error.message : "Unknown error",
+        db: {
+          code: postgresError?.code ?? null,
+          detail: postgresError?.detail ?? null,
+          constraint: postgresError?.constraint ?? null,
+          table: postgresError?.table ?? null,
+          column: postgresError?.column ?? null,
+        },
+      });
       res.status(500).json({ message: "Failed to create flight proposal" });
     }
   });
@@ -5641,13 +5661,16 @@ export function setupRoutes(app: Express) {
   });
 
   app.post('/api/trips/:id/flights', isAuthenticated, async (req: any, res) => {
+    let userId: string | undefined;
+    const tripId = parseInt(req.params.id);
     try {
-      const tripId = parseInt(req.params.id);
-      const userId = getRequestUserId(req);
+      userId = getRequestUserId(req);
 
       if (!userId) {
         return res.status(401).json({ message: "User ID not found" });
       }
+
+      await ensureRequestUserExists(req, userId);
 
       const { selectedMemberIds, ...flightData } = req.body;
       
@@ -5663,7 +5686,24 @@ export function setupRoutes(app: Express) {
       
       res.json(flight);
     } catch (error: unknown) {
-      console.error("Error adding flight:", error);
+      const postgresError = error as PostgresError & {
+        constraint?: string;
+        table?: string;
+        column?: string;
+      };
+      console.error("Error adding flight", {
+        endpoint: "POST /api/trips/:id/flights",
+        tripId: Number.isFinite(tripId) ? tripId : req.params.id,
+        userId: userId ?? null,
+        message: error instanceof Error ? error.message : "Unknown error",
+        db: {
+          code: postgresError?.code ?? null,
+          detail: postgresError?.detail ?? null,
+          constraint: postgresError?.constraint ?? null,
+          table: postgresError?.table ?? null,
+          column: postgresError?.column ?? null,
+        },
+      });
       if (error instanceof Error && 'name' in error && error.name === 'ZodError' && 'errors' in error) {
         res.status(400).json({ message: "Invalid flight data", errors: (error as any).errors });
       } else {
