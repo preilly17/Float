@@ -5687,12 +5687,36 @@ export function setupRoutes(app: Express) {
 
       const flight = await storage.addFlight(validatedData, userId);
       
-      await storage.createFlightRsvpsForTripMembers(
-        flight.id,
-        tripId,
-        userId,
-        normalizedSelectedMemberIds,
-      );
+      try {
+        await storage.createFlightRsvpsForTripMembers(
+          flight.id,
+          tripId,
+          userId,
+          normalizedSelectedMemberIds,
+        );
+      } catch (rsvpError) {
+        const postgresError = rsvpError as PostgresError & {
+          constraint?: string;
+          table?: string;
+          column?: string;
+        };
+
+        console.warn("Flight created but RSVP initialization failed", {
+          endpoint: "POST /api/trips/:id/flights",
+          flightId: flight.id,
+          tripId,
+          userId,
+          message:
+            rsvpError instanceof Error ? rsvpError.message : "Unknown error",
+          db: {
+            code: postgresError?.code ?? null,
+            detail: postgresError?.detail ?? null,
+            constraint: postgresError?.constraint ?? null,
+            table: postgresError?.table ?? null,
+            column: postgresError?.column ?? null,
+          },
+        });
+      }
       
       res.json(flight);
     } catch (error: unknown) {
