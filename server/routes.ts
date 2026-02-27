@@ -5673,6 +5673,11 @@ export function setupRoutes(app: Express) {
       await ensureRequestUserExists(req, userId);
 
       const { selectedMemberIds, ...flightData } = req.body;
+      const normalizedSelectedMemberIds = Array.isArray(selectedMemberIds)
+        ? selectedMemberIds.filter((memberId): memberId is string => typeof memberId === "string" && memberId.trim().length > 0)
+        : typeof selectedMemberIds === "string" && selectedMemberIds.trim().length > 0
+          ? [selectedMemberIds.trim()]
+          : undefined;
       
       const validatedData = insertFlightSchema.parse({
         ...flightData,
@@ -5682,7 +5687,12 @@ export function setupRoutes(app: Express) {
 
       const flight = await storage.addFlight(validatedData, userId);
       
-      await storage.createFlightRsvpsForTripMembers(flight.id, tripId, userId, selectedMemberIds);
+      await storage.createFlightRsvpsForTripMembers(
+        flight.id,
+        tripId,
+        userId,
+        normalizedSelectedMemberIds,
+      );
       
       res.json(flight);
     } catch (error: unknown) {
