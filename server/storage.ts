@@ -2384,6 +2384,10 @@ export class DatabaseStorage implements IStorage {
 
   private packingItemsCreatorCompatInitialized = false;
 
+  private flightsSchemaCompatInitPromise: Promise<void> | null = null;
+
+  private flightsSchemaCompatInitialized = false;
+
   private userLegacyPaymentCompatInitPromise: Promise<void> | null = null;
 
   private userLegacyPaymentCompatInitialized = false;
@@ -2695,6 +2699,129 @@ export class DatabaseStorage implements IStorage {
       await this.packingItemsCreatorCompatInitPromise;
     } finally {
       this.packingItemsCreatorCompatInitPromise = null;
+    }
+  }
+
+  private async ensureFlightsSchemaCompatibility(): Promise<void> {
+    if (this.flightsSchemaCompatInitialized) {
+      return;
+    }
+
+    if (this.flightsSchemaCompatInitPromise) {
+      await this.flightsSchemaCompatInitPromise;
+      return;
+    }
+
+    this.flightsSchemaCompatInitPromise = (async () => {
+      const { rows } = await query<{ column_name: string }>(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'flights'
+        `,
+      );
+
+      if (rows.length === 0) {
+        this.flightsSchemaCompatInitialized = true;
+        return;
+      }
+
+      const columnNames = new Set(rows.map((row) => row.column_name));
+      const addColumnIfMissing = async (column: string, definition: string): Promise<void> => {
+        if (!columnNames.has(column)) {
+          await query(`ALTER TABLE flights ADD COLUMN IF NOT EXISTS ${column} ${definition}`);
+          columnNames.add(column);
+        }
+      };
+
+      await addColumnIfMissing("user_id", "TEXT");
+      await addColumnIfMissing("departure_airport", "TEXT");
+      await addColumnIfMissing("departure_code", "TEXT");
+      await addColumnIfMissing("departure_terminal", "TEXT");
+      await addColumnIfMissing("departure_gate", "TEXT");
+      await addColumnIfMissing("arrival_airport", "TEXT");
+      await addColumnIfMissing("arrival_code", "TEXT");
+      await addColumnIfMissing("arrival_terminal", "TEXT");
+      await addColumnIfMissing("arrival_gate", "TEXT");
+      await addColumnIfMissing("booking_reference", "TEXT");
+      await addColumnIfMissing("seat_number", "TEXT");
+      await addColumnIfMissing("seat_class", "TEXT");
+      await addColumnIfMissing("price", "NUMERIC(10,2)");
+      await addColumnIfMissing("currency", "TEXT DEFAULT 'USD'");
+      await addColumnIfMissing("flight_type", "TEXT");
+      await addColumnIfMissing("status", "TEXT DEFAULT 'confirmed'");
+      await addColumnIfMissing("layovers", "JSONB");
+      await addColumnIfMissing("booking_source", "TEXT");
+      await addColumnIfMissing("purchase_url", "TEXT");
+      await addColumnIfMissing("aircraft", "TEXT");
+      await addColumnIfMissing("flight_duration", "INTEGER");
+      await addColumnIfMissing("baggage", "JSONB");
+
+      if (columnNames.has("created_by")) {
+        await query(`
+          UPDATE flights
+          SET user_id = created_by
+          WHERE user_id IS NULL
+            AND created_by IS NOT NULL
+        `);
+      }
+
+      if (columnNames.has("origin")) {
+        await query(`
+          UPDATE flights
+          SET departure_airport = origin
+          WHERE departure_airport IS NULL
+            AND origin IS NOT NULL
+        `);
+        await query(`
+          UPDATE flights
+          SET departure_code = origin
+          WHERE departure_code IS NULL
+            AND origin IS NOT NULL
+        `);
+      }
+
+      if (columnNames.has("destination")) {
+        await query(`
+          UPDATE flights
+          SET arrival_airport = destination
+          WHERE arrival_airport IS NULL
+            AND destination IS NOT NULL
+        `);
+        await query(`
+          UPDATE flights
+          SET arrival_code = destination
+          WHERE arrival_code IS NULL
+            AND destination IS NOT NULL
+        `);
+      }
+
+      if (columnNames.has("confirmation_number")) {
+        await query(`
+          UPDATE flights
+          SET booking_reference = confirmation_number
+          WHERE booking_reference IS NULL
+            AND confirmation_number IS NOT NULL
+        `);
+      }
+
+      if (columnNames.has("data")) {
+        await query(`
+          UPDATE flights
+          SET baggage = data
+          WHERE baggage IS NULL
+            AND data IS NOT NULL
+        `);
+      }
+
+      this.flightsSchemaCompatInitialized = true;
+    })();
+
+    try {
+      await this.flightsSchemaCompatInitPromise;
+    } finally {
+      this.flightsSchemaCompatInitPromise = null;
     }
   }
 
@@ -12790,6 +12917,8 @@ ${selectUserColumns("participant_user", "participant_user_")}
     flight: InsertFlight | Record<string, unknown>,
     userId: string,
   ): Promise<Flight> {
+    await this.ensureFlightsSchemaCompatibility();
+
     const record = flight as Record<string, unknown>;
 
     const getValue = (camelKey: string): unknown => {
