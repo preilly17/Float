@@ -2736,6 +2736,7 @@ export class DatabaseStorage implements IStorage {
       };
 
       await addColumnIfMissing("user_id", "TEXT");
+      await addColumnIfMissing("airline_code", "TEXT");
       await addColumnIfMissing("departure_airport", "TEXT");
       await addColumnIfMissing("departure_code", "TEXT");
       await addColumnIfMissing("departure_terminal", "TEXT");

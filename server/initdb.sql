@@ -240,6 +240,7 @@ CREATE TABLE IF NOT EXISTS flights (
   departure_time TIMESTAMPTZ NOT NULL,
   arrival_time TIMESTAMPTZ,
   airline TEXT,
+  airline_code TEXT,
   flight_number TEXT,
   confirmation_number TEXT,
   notes TEXT,
