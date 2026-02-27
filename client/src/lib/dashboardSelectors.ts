@@ -242,8 +242,8 @@ export type TripWithPlanningData = TripWithDetails & {
 };
 
 export const calculateTripPlanningProgress = (trip: TripWithPlanningData): PlanningProgress => {
-  // Flights: confirmed/booked are valid booking statuses
-  const confirmedFlightStatuses = ["confirmed", "booked"];
+  // Flights: confirmed/booked/scheduled are valid booking statuses
+  const confirmedFlightStatuses = ["confirmed", "booked", "scheduled"];
   // Hotels: confirmed/booked for bookings, scheduled for Schedule & Invite mode
   const confirmedHotelStatuses = ["confirmed", "booked", "scheduled"];
   // Activities: "active" is the status used for confirmed activities in the DB
