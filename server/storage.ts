@@ -8905,8 +8905,13 @@ ${selectUserColumns("participant_user", "participant_user_")}
         }
       }
     } catch (error) {
+      const postgresError = error as { code?: string };
       const message = error instanceof Error ? error.message : "";
-      if (!message.includes('relation "flight_rsvps" does not exist')) {
+      const isLegacyRsvpSchemaIssue =
+        message.includes("flight_rsvps") &&
+        (postgresError?.code === "42P01" || postgresError?.code === "42703" || postgresError?.code === "42P10");
+
+      if (!isLegacyRsvpSchemaIssue) {
         throw error;
       }
 
