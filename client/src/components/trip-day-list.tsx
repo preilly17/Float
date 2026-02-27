@@ -1042,15 +1042,19 @@ export function TripDayList({
     flights.forEach(flight => {
       const departureDate = parseActivityDate(flight.departureTime);
       const arrivalDate = parseActivityDate(flight.arrivalTime);
-      
+
       const isCreator = flight.userId === currentUserId;
       const rsvpStatus = flight.currentUserRsvp?.status;
+
+      // Declined flights should not appear on the invitee's calendar
+      if (!isCreator && rsvpStatus === "declined") return;
+
       const isConfirmed = isCreator || rsvpStatus === "accepted";
       const isPendingRsvp = rsvpStatus === "pending";
-      
+
       const isDepartureDay = departureDate && isSameDay(departureDate, day);
       const isArrivalDay = arrivalDate && isSameDay(arrivalDate, day);
-      
+
       if (isDepartureDay) {
         items.push({
           id: flight.id,
@@ -1066,7 +1070,7 @@ export function TripDayList({
           rawData: flight,
         });
       }
-      
+
       if (isArrivalDay && !isDepartureDay) {
         items.push({
           id: flight.id,

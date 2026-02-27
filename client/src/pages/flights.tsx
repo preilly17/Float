@@ -137,6 +137,8 @@ const extractApiErrorMessage = (error: unknown): string | null => {
 function getFlightStatusColor(status: string): string {
   switch (status) {
     case "confirmed": return "bg-green-100 text-green-800";
+    case "scheduled": return "bg-green-100 text-green-800";
+    case "booked": return "bg-green-100 text-green-800";
     case "cancelled": return "bg-red-100 text-red-800";
     case "delayed": return "bg-yellow-100 text-yellow-800";
     case "completed": return "bg-blue-100 text-blue-800";
@@ -2955,8 +2957,10 @@ export default function FlightsPage() {
   });
 
   const handleToggleFlightStatus = (flight: FlightWithDetails) => {
-    const currentStatus = (flight.status ?? 'proposed').toLowerCase();
-    const nextStatus = currentStatus === 'confirmed' ? 'proposed' : 'confirmed';
+    const currentStatus = (flight.status ?? 'scheduled').toLowerCase();
+    // Toggle between 'scheduled' and 'confirmed' — both are valid booked states.
+    // Never toggle to 'proposed'; that requires a real proposal record.
+    const nextStatus = currentStatus === 'confirmed' ? 'scheduled' : 'confirmed';
 
     updateFlightMutation.mutate({
       id: flight.id,
@@ -3745,7 +3749,7 @@ export default function FlightsPage() {
                           onCheckedChange={() => handleToggleFlightStatus(flight)}
                           disabled={!permissions.canManageStatus}
                         />
-                        <span>{statusValue === 'confirmed' ? 'Confirmed' : 'Proposed'}</span>
+                        <span>{statusValue === 'confirmed' ? 'Confirmed' : 'Scheduled'}</span>
                         {permissions.isAdminOverride && (
                           <Badge variant="outline" className="text-xs">
                             Admin override
@@ -3764,7 +3768,7 @@ export default function FlightsPage() {
                             Edit
                           </Button>
                         )}
-                        {statusValue !== 'scheduled' && (
+                        {!['scheduled', 'confirmed', 'booked'].includes(statusValue) && (
                           <Button
                             variant="outline"
                             size="sm"
