@@ -2816,6 +2816,14 @@ export class DatabaseStorage implements IStorage {
         `);
       }
 
+      // Drop NOT NULL constraints from legacy columns that the new INSERT statement
+      // does not populate. Without this, inserts fail with constraint violations.
+      for (const legacyCol of ["created_by", "origin", "destination"] as const) {
+        if (columnNames.has(legacyCol)) {
+          await query(`ALTER TABLE flights ALTER COLUMN "${legacyCol}" DROP NOT NULL`);
+        }
+      }
+
       this.flightsSchemaCompatInitialized = true;
     })();
 
@@ -3301,12 +3309,68 @@ export class DatabaseStorage implements IStorage {
             await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS data JSONB`);
           }
 
+          // Add columns required by the createFlightProposal INSERT and RETURNING clauses
+          if (!hasDepartureAirport) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS departure_airport TEXT`);
+          }
+
+          if (!columnNames.has("departure_terminal")) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS departure_terminal TEXT`);
+          }
+
+          if (!hasArrivalAirport) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS arrival_airport TEXT`);
+          }
+
+          if (!columnNames.has("arrival_terminal")) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS arrival_terminal TEXT`);
+          }
+
+          if (!columnNames.has("duration")) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS duration TEXT`);
+          }
+
+          if (!columnNames.has("stops")) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS stops INTEGER DEFAULT 0`);
+          }
+
+          if (!columnNames.has("aircraft")) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS aircraft TEXT`);
+          }
+
+          if (!columnNames.has("booking_url")) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS booking_url TEXT`);
+          }
+
+          if (!columnNames.has("platform")) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS platform TEXT`);
+          }
+
+          if (!columnNames.has("average_ranking")) {
+            await query(`ALTER TABLE flight_proposals ADD COLUMN IF NOT EXISTS average_ranking NUMERIC(5,2)`);
+          }
+
+          // Sync origin/destination with departure_airport/arrival_airport for legacy rows
           if (hasDepartureAirport) {
             await query(`
               UPDATE flight_proposals
               SET origin = departure_airport
               WHERE origin IS NULL
                 AND departure_airport IS NOT NULL
+            `);
+            await query(`
+              UPDATE flight_proposals
+              SET departure_airport = origin
+              WHERE departure_airport IS NULL
+                AND origin IS NOT NULL
+            `);
+          } else {
+            // departure_airport was just added; populate it from origin
+            await query(`
+              UPDATE flight_proposals
+              SET departure_airport = origin
+              WHERE departure_airport IS NULL
+                AND origin IS NOT NULL
             `);
           }
 
@@ -3317,6 +3381,27 @@ export class DatabaseStorage implements IStorage {
               WHERE destination IS NULL
                 AND arrival_airport IS NOT NULL
             `);
+            await query(`
+              UPDATE flight_proposals
+              SET arrival_airport = destination
+              WHERE arrival_airport IS NULL
+                AND destination IS NOT NULL
+            `);
+          } else {
+            // arrival_airport was just added; populate it from destination
+            await query(`
+              UPDATE flight_proposals
+              SET arrival_airport = destination
+              WHERE arrival_airport IS NULL
+                AND destination IS NOT NULL
+            `);
+          }
+
+          // Relax legacy NOT NULL constraints that new inserts don't satisfy
+          for (const legacyCol of ["origin", "destination"] as const) {
+            if (columnNames.has(legacyCol)) {
+              await query(`ALTER TABLE flight_proposals ALTER COLUMN "${legacyCol}" DROP NOT NULL`);
+            }
           }
         }
       }
