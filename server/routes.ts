@@ -5672,15 +5672,51 @@ export function setupRoutes(app: Express) {
 
       await ensureRequestUserExists(req, userId);
 
-      const { selectedMemberIds, ...flightData } = req.body;
+      const body = req.body ?? {};
+      const { selectedMemberIds, ...flightData } = body;
+      const departAt = typeof body.departAt === "string" ? body.departAt : null;
+      const arriveAt = typeof body.arriveAt === "string" ? body.arriveAt : null;
+      const origin = typeof body.origin === "string" ? body.origin : null;
+      const destination = typeof body.destination === "string" ? body.destination : null;
+
+      console.info("Create flight request payload", {
+        endpoint: "POST /api/trips/:id/flights",
+        tripId: Number.isFinite(tripId) ? tripId : req.params.id,
+        userId,
+        airline: body.airline ?? null,
+        flightNumber: body.flightNumber ?? null,
+        departAt,
+        arriveAt,
+        origin,
+        destination,
+      });
+
       const normalizedSelectedMemberIds = Array.isArray(selectedMemberIds)
         ? selectedMemberIds.filter((memberId): memberId is string => typeof memberId === "string" && memberId.trim().length > 0)
         : typeof selectedMemberIds === "string" && selectedMemberIds.trim().length > 0
           ? [selectedMemberIds.trim()]
           : undefined;
+
+      const normalizedFlightData = {
+        ...flightData,
+        departureTime: flightData.departureTime ?? departAt,
+        arrivalTime: flightData.arrivalTime ?? arriveAt,
+        departureCode: flightData.departureCode ?? origin,
+        arrivalCode: flightData.arrivalCode ?? destination,
+        departureAirport: flightData.departureAirport ?? origin,
+        arrivalAirport: flightData.arrivalAirport ?? destination,
+      };
+
+      if (normalizedFlightData.departureTime && Number.isNaN(new Date(normalizedFlightData.departureTime as string).getTime())) {
+        return res.status(400).json({ message: "Invalid departure time. Use an ISO date/time string." });
+      }
+
+      if (normalizedFlightData.arrivalTime && Number.isNaN(new Date(normalizedFlightData.arrivalTime as string).getTime())) {
+        return res.status(400).json({ message: "Invalid arrival time. Use an ISO date/time string." });
+      }
       
       const validatedData = insertFlightSchema.parse({
-        ...flightData,
+        ...normalizedFlightData,
         tripId,
         bookedBy: userId
       });
@@ -5718,7 +5754,7 @@ export function setupRoutes(app: Express) {
         });
       }
       
-      res.json(flight);
+      res.status(201).json(flight);
     } catch (error: unknown) {
       const postgresError = error as PostgresError & {
         constraint?: string;
@@ -5730,6 +5766,7 @@ export function setupRoutes(app: Express) {
         tripId: Number.isFinite(tripId) ? tripId : req.params.id,
         userId: userId ?? null,
         message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : null,
         db: {
           code: postgresError?.code ?? null,
           detail: postgresError?.detail ?? null,
@@ -5740,8 +5777,10 @@ export function setupRoutes(app: Express) {
       });
       if (error instanceof Error && 'name' in error && error.name === 'ZodError' && 'errors' in error) {
         res.status(400).json({ message: "Invalid flight data", errors: (error as any).errors });
+      } else if (error instanceof Error && error.message.startsWith("Invalid date for flight field:")) {
+        res.status(400).json({ message: error.message });
       } else {
-        res.status(500).json({ message: "Failed to add flight" });
+        res.status(500).json({ error: "create flight failed", message: error instanceof Error ? error.message : "Unknown error" });
       }
     }
   });
