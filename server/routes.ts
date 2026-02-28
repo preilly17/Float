@@ -5663,6 +5663,10 @@ export function setupRoutes(app: Express) {
   app.post('/api/trips/:id/flights', isAuthenticated, async (req: any, res) => {
     let userId: string | undefined;
     const tripId = parseInt(req.params.id);
+    const FLIGHT_TYPES = {
+      OUTBOUND: "OUTBOUND",
+      RETURN: "RETURN",
+    } as const;
     try {
       userId = getRequestUserId(req);
 
@@ -5707,6 +5711,64 @@ export function setupRoutes(app: Express) {
         arrivalAirport: flightData.arrivalAirport ?? destination,
       };
 
+      const requestFlightType =
+        typeof body.flightType === "string" && body.flightType.trim().length > 0
+          ? body.flightType.trim().toUpperCase()
+          : typeof body.flight_type === "string" && body.flight_type.trim().length > 0
+            ? body.flight_type.trim().toUpperCase()
+            : null;
+
+      const normalizedProvidedFlightType =
+        requestFlightType === FLIGHT_TYPES.RETURN
+          ? FLIGHT_TYPES.RETURN
+          : requestFlightType === FLIGHT_TYPES.OUTBOUND
+            ? FLIGHT_TYPES.OUTBOUND
+            : null;
+
+      let resolvedFlightType = normalizedProvidedFlightType;
+      if (!resolvedFlightType) {
+        resolvedFlightType = FLIGHT_TYPES.OUTBOUND;
+
+        const departureTimeValue = normalizedFlightData.departureTime;
+        const departureDate =
+          departureTimeValue instanceof Date
+            ? departureTimeValue
+            : typeof departureTimeValue === "string" || typeof departureTimeValue === "number"
+              ? new Date(departureTimeValue)
+              : null;
+
+        const trip = Number.isFinite(tripId)
+          ? await storage.getTripById(tripId)
+          : undefined;
+
+        if (
+          trip?.startDate &&
+          trip?.endDate &&
+          departureDate &&
+          !Number.isNaN(departureDate.getTime())
+        ) {
+          const startDate = new Date(trip.startDate);
+          const endDate = new Date(trip.endDate);
+
+          if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime())) {
+            const departureTimestamp = departureDate.getTime();
+            const startDistance = Math.abs(departureTimestamp - startDate.getTime());
+            const endDistance = Math.abs(departureTimestamp - endDate.getTime());
+            resolvedFlightType = startDistance <= endDistance
+              ? FLIGHT_TYPES.OUTBOUND
+              : FLIGHT_TYPES.RETURN;
+          }
+        }
+
+        console.info("Flight type resolved for create flight request", {
+          endpoint: "POST /api/trips/:id/flights",
+          tripId: Number.isFinite(tripId) ? tripId : req.params.id,
+          userId,
+          flightType: resolvedFlightType,
+          source: "inferred",
+        });
+      }
+
       if (normalizedFlightData.departureTime && Number.isNaN(new Date(normalizedFlightData.departureTime as string).getTime())) {
         return res.status(400).json({ message: "Invalid departure time. Use an ISO date/time string." });
       }
@@ -5717,6 +5779,7 @@ export function setupRoutes(app: Express) {
       
       const validatedData = insertFlightSchema.parse({
         ...normalizedFlightData,
+        flightType: resolvedFlightType,
         tripId,
         bookedBy: userId
       });
