@@ -13094,8 +13094,10 @@ ${selectUserColumns("participant_user", "participant_user_")}
     }
 
     const normalizedUserId =
-      normalizeUserId(optionalTrimmedString("userId")) ??
-      normalizeUserId(userId);
+      optionalTrimmedString("userId") ??
+      (typeof userId === "string" && userId.trim().length > 0
+        ? userId.trim()
+        : null);
     if (!normalizedUserId) {
       throw new Error("Missing user ID for flight insert");
     }
