@@ -4643,26 +4643,69 @@ export function setupRoutes(app: Express) {
             .json({ message: "Trip ID mismatch between path and payload" });
         }
 
+        const toStopsCount = (value: unknown): number => {
+          if (typeof value === "number" && Number.isFinite(value)) {
+            return Math.max(0, Math.trunc(value));
+          }
+
+          if (typeof value === "string") {
+            const parsed = Number.parseInt(value, 10);
+            if (Number.isFinite(parsed)) {
+              return Math.max(0, parsed);
+            }
+            return 0;
+          }
+
+          if (Array.isArray(value)) {
+            return value.length;
+          }
+
+          if (value && typeof value === "object") {
+            const candidate = value as { layovers?: unknown; segments?: unknown };
+            if (Array.isArray(candidate.layovers)) {
+              return candidate.layovers.length;
+            }
+            if (Array.isArray(candidate.segments)) {
+              return candidate.segments.length;
+            }
+          }
+
+          return 0;
+        };
+
+        const normalizedStops =
+          req.body?.stops != null
+            ? toStopsCount(req.body.stops)
+            : toStopsCount(parsedFlight.data.layovers);
+
+        const durationSource = req.body?.duration ?? parsedFlight.data.flightDuration ?? null;
+        const normalizedDuration =
+          typeof durationSource === "string"
+            ? durationSource
+            : typeof durationSource === "number" && Number.isFinite(durationSource)
+              ? `${Math.max(0, Math.trunc(durationSource))}m`
+              : null;
+
         const proposalData = {
           tripId,
           proposedBy: userId,
-          airline: req.body.airline || '',
-          flightNumber: req.body.flightNumber || '',
-          departureAirport: req.body.departureAirport || '',
-          departureCode: req.body.departureCode || null,
-          departureTime: req.body.departureTime || null,
-          departureTerminal: req.body.departureTerminal || null,
-          arrivalAirport: req.body.arrivalAirport || '',
-          arrivalCode: req.body.arrivalCode || null,
-          arrivalTime: req.body.arrivalTime || null,
-          arrivalTerminal: req.body.arrivalTerminal || null,
-          duration: req.body.duration || req.body.flightDuration || null,
-          stops: req.body.stops ?? 0,
-          aircraft: req.body.aircraft || null,
-          price: req.body.price ? String(req.body.price) : null,
-          currency: req.body.currency || 'USD',
-          bookingUrl: req.body.bookingUrl || req.body.purchaseUrl || null,
-          platform: req.body.bookingSource || 'Manual',
+          airline: parsedFlight.data.airline || '',
+          flightNumber: parsedFlight.data.flightNumber || '',
+          departureAirport: parsedFlight.data.departureAirport || '',
+          departureCode: parsedFlight.data.departureCode || null,
+          departureTime: parsedFlight.data.departureTime || null,
+          departureTerminal: parsedFlight.data.departureTerminal || null,
+          arrivalAirport: parsedFlight.data.arrivalAirport || '',
+          arrivalCode: parsedFlight.data.arrivalCode || null,
+          arrivalTime: parsedFlight.data.arrivalTime || null,
+          arrivalTerminal: parsedFlight.data.arrivalTerminal || null,
+          duration: normalizedDuration,
+          stops: normalizedStops,
+          aircraft: parsedFlight.data.aircraft || null,
+          price: parsedFlight.data.price != null ? String(parsedFlight.data.price) : null,
+          currency: parsedFlight.data.currency || 'USD',
+          bookingUrl: req.body.bookingUrl || parsedFlight.data.purchaseUrl || null,
+          platform: parsedFlight.data.bookingSource || 'Manual',
           status: 'active',
         };
 
