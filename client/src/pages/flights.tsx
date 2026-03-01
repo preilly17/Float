@@ -2799,27 +2799,28 @@ export default function FlightsPage() {
 
   const proposeFlightMutation = useMutation({
     mutationFn: async (flightData: ManualFlightPayload & { votingDeadline?: string }) => {
+      const fallbackDepartureTime = flightData.departureTime || new Date().toISOString();
       const proposalPayload = {
         tripId: Number(tripId),
         airline: flightData.airlineCode || flightData.airline || 'Unknown',
         flightNumber: flightData.flightNumber || '',
-        departureAirport: flightData.departureCode || flightData.departureCity || '',
-        arrivalAirport: flightData.arrivalCode || flightData.arrivalCity || '',
-        departureTime: flightData.departureTime || flightData.departureDate || '',
-        arrivalTime: flightData.arrivalTime || null,
+        departureAirport: flightData.departureAirport || flightData.departureCode || '',
+        arrivalAirport: flightData.arrivalAirport || flightData.arrivalCode || '',
+        departureTime: fallbackDepartureTime,
+        arrivalTime: flightData.arrivalTime || fallbackDepartureTime,
         price: flightData.price?.toString() || '0',
-        cabinClass: flightData.cabinClass || 'ECONOMY',
         platform: 'Manual',
         bookingUrl: '',
         votingDeadline: flightData.votingDeadline || null,
       };
-      return await apiRequest(`/api/trips/${tripId}/flight-proposals`, {
+      return await apiRequest(`/api/trips/${tripId}/proposals/flights`, {
         method: "POST",
-        body: JSON.stringify(proposalPayload),
+        body: proposalPayload,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/trips/${tripId}/flight-proposals`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/trips/${tripId}/proposals/flights`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/trips/${tripId}/proposals/flights?mineOnly=true`] });
       setIsAddFlightOpen(false);
       setEditingFlight(null);
       setFlightMode('SAVE');
@@ -2972,6 +2973,15 @@ export default function FlightsPage() {
   // Share flight with group as a proposal
   const shareFlightWithGroup = async (flight: any) => {
     try {
+      if (!tripId) {
+        toast({
+          title: "Unable to propose flight",
+          description: "Select a trip before proposing flights to your group.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const departureAirportName =
         flight.departure?.airport ||
         flight.departureAirport ||
@@ -3057,6 +3067,7 @@ export default function FlightsPage() {
         (typeof flight.price === "number" ? flight.price : 0);
 
       const proposalData = {
+        tripId: Number(tripId),
         airline:
           flight.airline ||
           flight.airlineName ||
@@ -3064,9 +3075,9 @@ export default function FlightsPage() {
           getFlightAirlineName(flight) ||
           "Various Airlines",
         flightNumber: flight.flightNumber || flight.number || `Flight-${Date.now()}`,
-        departure: departureAirportName,
+        departureAirport: departureAirportName,
         departureTime: departureTimeValue,
-        arrival: arrivalAirportName,
+        arrivalAirport: arrivalAirportName,
         arrivalTime: arrivalTimeValue,
         duration: durationValue,
         stops: stopsValue,
@@ -3077,7 +3088,7 @@ export default function FlightsPage() {
         bookingUrl: bookingUrlValue,
       };
 
-      await apiRequest(`/api/trips/${tripId}/flight-proposals`, {
+      await apiRequest(`/api/trips/${tripId}/proposals/flights`, {
         method: "POST",
         body: proposalData,
       });
