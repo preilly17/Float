@@ -3850,7 +3850,21 @@ export function setupRoutes(app: Express) {
         userId,
       );
 
-      await storage.createRestaurantRsvpsForTripMembers(restaurant.id, tripId, userId, selectedMemberIds);
+      try {
+        await storage.createRestaurantRsvpsForTripMembers(
+          restaurant.id,
+          tripId,
+          userId,
+          selectedMemberIds,
+        );
+      } catch (rsvpError) {
+        console.error("Failed to persist restaurant RSVPs after create:", {
+          restaurantId: restaurant.id,
+          tripId,
+          userId,
+          error: rsvpError,
+        });
+      }
 
       res.status(201).json(restaurant);
     } catch (error: unknown) {
