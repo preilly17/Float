@@ -4601,19 +4601,6 @@ export function setupRoutes(app: Express) {
           return res.status(401).json({ message: "User ID not found" });
         }
 
-        const parsedFlight = insertFlightSchema.safeParse(req.body);
-        if (!parsedFlight.success) {
-          return res
-            .status(400)
-            .json({ message: "Invalid flight data", errors: parsedFlight.error.issues });
-        }
-
-        if (parsedFlight.data.tripId !== tripId) {
-          return res
-            .status(400)
-            .json({ message: "Trip ID mismatch between path and payload" });
-        }
-
         const rawFlightId = req.body?.id ?? req.body?.flightId;
         const flightId =
           typeof rawFlightId === 'number'
@@ -4639,40 +4626,55 @@ export function setupRoutes(app: Express) {
             flightId: result.flightId,
             triggeredBy: userId,
           });
-        } else {
-          const proposalData = {
-            tripId,
-            proposedBy: userId,
-            airline: req.body.airline || '',
-            flightNumber: req.body.flightNumber || '',
-            departureAirport: req.body.departureAirport || '',
-            departureCode: req.body.departureCode || null,
-            departureTime: req.body.departureTime || null,
-            departureTerminal: req.body.departureTerminal || null,
-            arrivalAirport: req.body.arrivalAirport || '',
-            arrivalCode: req.body.arrivalCode || null,
-            arrivalTime: req.body.arrivalTime || null,
-            arrivalTerminal: req.body.arrivalTerminal || null,
-            duration: req.body.duration || req.body.flightDuration || null,
-            stops: req.body.stops ?? 0,
-            aircraft: req.body.aircraft || null,
-            price: req.body.price ? String(req.body.price) : null,
-            currency: req.body.currency || 'USD',
-            bookingUrl: req.body.bookingUrl || req.body.purchaseUrl || null,
-            platform: req.body.bookingSource || 'Manual',
-            status: 'active',
-          };
 
-          const proposal = await storage.createFlightProposal(proposalData, userId);
-          res.status(201).json(proposal);
-
-          broadcastToTrip(tripId, {
-            type: "flight_proposal_created",
-            tripId,
-            proposalId: proposal.id,
-            triggeredBy: userId,
-          });
+          return;
         }
+
+        const parsedFlight = insertFlightSchema.safeParse(req.body);
+        if (!parsedFlight.success) {
+          return res
+            .status(400)
+            .json({ message: "Invalid flight data", errors: parsedFlight.error.issues });
+        }
+
+        if (parsedFlight.data.tripId !== tripId) {
+          return res
+            .status(400)
+            .json({ message: "Trip ID mismatch between path and payload" });
+        }
+
+        const proposalData = {
+          tripId,
+          proposedBy: userId,
+          airline: req.body.airline || '',
+          flightNumber: req.body.flightNumber || '',
+          departureAirport: req.body.departureAirport || '',
+          departureCode: req.body.departureCode || null,
+          departureTime: req.body.departureTime || null,
+          departureTerminal: req.body.departureTerminal || null,
+          arrivalAirport: req.body.arrivalAirport || '',
+          arrivalCode: req.body.arrivalCode || null,
+          arrivalTime: req.body.arrivalTime || null,
+          arrivalTerminal: req.body.arrivalTerminal || null,
+          duration: req.body.duration || req.body.flightDuration || null,
+          stops: req.body.stops ?? 0,
+          aircraft: req.body.aircraft || null,
+          price: req.body.price ? String(req.body.price) : null,
+          currency: req.body.currency || 'USD',
+          bookingUrl: req.body.bookingUrl || req.body.purchaseUrl || null,
+          platform: req.body.bookingSource || 'Manual',
+          status: 'active',
+        };
+
+        const proposal = await storage.createFlightProposal(proposalData, userId);
+        res.status(201).json(proposal);
+
+        broadcastToTrip(tripId, {
+          type: "flight_proposal_created",
+          tripId,
+          proposalId: proposal.id,
+          triggeredBy: userId,
+        });
       } catch (error: unknown) {
         console.error("Error proposing flight to group:", error);
         if (error instanceof z.ZodError) {
