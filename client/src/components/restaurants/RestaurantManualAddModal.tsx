@@ -91,6 +91,28 @@ const timeOptions = [
   "11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM", "2:00 PM",
 ];
 
+const parseCityCountryFromAddress = (
+  address: string,
+  fallbackCity?: string | null,
+  fallbackCountry?: string | null,
+): { city: string; country: string } => {
+  const parts = address
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const inferredCountry = parts.at(-1) || fallbackCountry?.trim() || "Unknown";
+  const inferredCity =
+    parts.length > 1
+      ? parts[parts.length - 2]
+      : fallbackCity?.trim() || parts[0] || "Unknown";
+
+  return {
+    city: inferredCity,
+    country: inferredCountry,
+  };
+};
+
 export function RestaurantManualAddModal({ tripId, open, onOpenChange, prefill, onSuccess, defaultMode = "SAVE" }: RestaurantManualAddModalProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -193,11 +215,14 @@ export function RestaurantManualAddModal({ tripId, open, onOpenChange, prefill, 
       }
 
       const sanitizedUrl = prefill?.url?.trim() ? prefill.url.trim() : null;
+      const { city, country } = parseCityCountryFromAddress(values.address, prefill?.city, prefill?.country);
 
       const payload = {
         tripId: normalizedTripId,
         name: values.name.trim(),
         address: values.address.trim(),
+        city,
+        country,
         reservationDate: format(values.reservationDate, "yyyy-MM-dd"),
         reservationTime: values.reservationTime,
         partySize: values.partySize,
@@ -212,7 +237,7 @@ export function RestaurantManualAddModal({ tripId, open, onOpenChange, prefill, 
         notes: prefill?.platform
           ? `Saved from ${prefill.platform === "resy" ? "Resy" : "OpenTable"} link builder`
           : null,
-        invitedMembers: selectedMemberIds,
+        selectedMemberIds,
       };
 
       await apiRequest(`/api/trips/${normalizedTripId}/restaurants`, {
