@@ -345,3 +345,86 @@ describe("POST /api/hotel-proposals/:id/convert", () => {
     });
   });
 });
+
+
+describe("GET /api/trips/:id/restaurant-proposals", () => {
+  let app: express.Express;
+  let httpServer: import("http").Server;
+  let handler: RouteHandler;
+  let getTripByIdMock: jest.SpyInstance;
+  let getTripRestaurantProposalsMock: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    app = express();
+    app.use(express.json());
+    httpServer = setupRoutes(app);
+    handler = findRouteHandler(app, "/api/trips/:id/restaurant-proposals", "get");
+    getTripByIdMock = jest.spyOn(storageModule.storage, "getTripById");
+    getTripRestaurantProposalsMock = jest.spyOn(storageModule.storage, "getTripRestaurantProposals");
+  });
+
+  afterEach(async () => {
+    getTripByIdMock.mockRestore();
+    getTripRestaurantProposalsMock.mockRestore();
+
+    await new Promise<void>((resolve) => {
+      httpServer.close(() => resolve());
+    });
+  });
+
+  it("returns 403 instead of 500 when members payload is missing", async () => {
+    getTripByIdMock.mockResolvedValueOnce({
+      id: 10,
+      createdBy: "owner",
+      members: undefined,
+    });
+
+    const req: any = {
+      params: { id: "10" },
+      session: { userId: "test-user" },
+      user: { id: "test-user" },
+      headers: {},
+      get: jest.fn(),
+      header: jest.fn(),
+    };
+
+    const res = createMockResponse();
+
+    await handler(req, res);
+
+    expect(getTripRestaurantProposalsMock).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ message: "You are no longer a member of this trip" });
+  });
+
+  it("returns 200 with restaurant proposals for a valid member", async () => {
+    getTripByIdMock.mockResolvedValueOnce({
+      id: 10,
+      createdBy: "owner",
+      members: [{ userId: "test-user" }],
+    });
+
+    getTripRestaurantProposalsMock.mockResolvedValueOnce([
+      { id: 101, tripId: 10, restaurantName: "Kintsugi" },
+    ]);
+
+    const req: any = {
+      params: { id: "10" },
+      session: { userId: "test-user" },
+      user: { id: "test-user" },
+      headers: {},
+      get: jest.fn(),
+      header: jest.fn(),
+    };
+
+    const res = createMockResponse();
+
+    await handler(req, res);
+
+    expect(getTripRestaurantProposalsMock).toHaveBeenCalledWith(10, "test-user");
+    expect(res.json).toHaveBeenCalledWith([
+      { id: 101, tripId: 10, restaurantName: "Kintsugi" },
+    ]);
+  });
+});
