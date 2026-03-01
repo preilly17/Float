@@ -12126,6 +12126,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
   ): Promise<HotelProposalWithDetails[]> {
     await this.ensureProposalCreatorCompatibility();
     await this.ensureProposalRankingCompatibility();
+    await this.ensureProposalLinkStructures();
 
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -12254,6 +12255,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
   ): Promise<FlightProposalWithDetails[]> {
     await this.ensureProposalCreatorCompatibility();
     await this.ensureProposalRankingCompatibility();
+    await this.ensureProposalLinkStructures();
 
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -12410,6 +12412,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
   ): Promise<RestaurantProposalWithDetails[]> {
     await this.ensureProposalCreatorCompatibility();
     await this.ensureProposalRankingCompatibility();
+    await this.ensureProposalLinkStructures();
 
     const conditions: string[] = [];
     const values: unknown[] = [];
