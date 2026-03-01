@@ -164,6 +164,33 @@ const extractAirportCode = (value?: string | null): string | null => {
   return null;
 };
 
+const extractAirlineCode = (value?: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^[A-Z0-9]{2}$/i.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+
+  const parenMatch = trimmed.match(/\(([A-Z0-9]{2})\)/i);
+  if (parenMatch) {
+    return parenMatch[1].toUpperCase();
+  }
+
+  const leadingMatch = trimmed.match(/^([A-Z0-9]{2})\b/i);
+  if (leadingMatch) {
+    return leadingMatch[1].toUpperCase();
+  }
+
+  return null;
+};
+
 const extractAirportName = (value?: string | null): string | null => {
   if (!value) {
     return null;
@@ -2800,17 +2827,37 @@ export default function FlightsPage() {
   const proposeFlightMutation = useMutation({
     mutationFn: async (flightData: ManualFlightPayload & { votingDeadline?: string }) => {
       const fallbackDepartureTime = flightData.departureTime || new Date().toISOString();
+      const airlineCode =
+        flightData.airlineCode ||
+        extractAirlineCode(flightData.airline) ||
+        extractAirlineCode((flightData as Partial<{ airlineFlight: string }>).airlineFlight) ||
+        'UN';
+      const departureCode =
+        flightData.departureCode ||
+        extractAirportCode(flightData.departureAirport) ||
+        '';
+      const arrivalCode =
+        flightData.arrivalCode ||
+        extractAirportCode(flightData.arrivalAirport) ||
+        '';
+      const platform = (flightData as Partial<{ platform: string }>).platform || 'Manual';
+      const bookingUrl = (flightData as Partial<{ bookingUrl: string }>).bookingUrl || '';
       const proposalPayload = {
         tripId: Number(tripId),
         airline: flightData.airlineCode || flightData.airline || 'Unknown',
+        airlineCode,
         flightNumber: flightData.flightNumber || '',
         departureAirport: flightData.departureAirport || flightData.departureCode || '',
+        departureCode,
         arrivalAirport: flightData.arrivalAirport || flightData.arrivalCode || '',
+        arrivalCode,
         departureTime: fallbackDepartureTime,
         arrivalTime: flightData.arrivalTime || fallbackDepartureTime,
         price: flightData.price?.toString() || '0',
-        platform: 'Manual',
-        bookingUrl: '',
+        bookingSource: platform,
+        purchaseUrl: bookingUrl,
+        platform,
+        bookingUrl,
         votingDeadline: flightData.votingDeadline || null,
       };
       return await apiRequest(`/api/trips/${tripId}/proposals/flights`, {
