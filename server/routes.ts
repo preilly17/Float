@@ -5028,18 +5028,96 @@ export function setupRoutes(app: Express) {
   app.get(
     '/api/trips/:tripId/proposals/restaurants',
     isAuthenticated,
-    (req: any, res) => {
-      const tripId = Number.parseInt(req.params.tripId, 10);
-      if (Number.isNaN(tripId)) {
-        return res.status(400).json({ message: "Invalid trip id" });
-      }
+    async (req: any, res) => {
+      try {
+        const tripId = Number.parseInt(req.params.tripId, 10);
+        if (Number.isNaN(tripId)) {
+          return res.status(400).json({ message: "Invalid trip id" });
+        }
 
-      const userId = getRequestUserId(req);
-      if (!userId) {
-        return res.status(401).json({ message: "User ID not found" });
-      }
+        const userId = getRequestUserId(req);
 
-      res.json([]);
+        if (!userId) {
+          return res.status(401).json({ message: "User ID not found" });
+        }
+
+        const trip = await storage.getTripById(tripId);
+        if (!trip) {
+          return res.status(404).json({ message: "Trip not found" });
+        }
+
+        const isMember = trip.createdBy === userId || trip.members.some((member) => member.userId === userId);
+        if (!isMember) {
+          return res.status(403).json({ message: "You are no longer a member of this trip" });
+        }
+
+        const proposals = await storage.getTripRestaurantProposals(tripId, userId);
+        res.json(proposals);
+      } catch (error: unknown) {
+        const userId = getRequestUserId(req) ?? null;
+        const tripId = Number.parseInt(req.params.tripId, 10);
+        const safeMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error("Error fetching restaurant proposals", {
+          tripId: Number.isFinite(tripId) ? tripId : req.params.tripId,
+          userId,
+          stack: error instanceof Error ? error.stack : error,
+        });
+        res.status(500).json({
+          error: "restaurant-proposals failed",
+          details: safeMessage,
+        });
+      }
+    },
+  );
+
+  app.post(
+    '/api/trips/:tripId/proposals/restaurants',
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const tripId = Number.parseInt(req.params.tripId, 10);
+        if (Number.isNaN(tripId)) {
+          return res.status(400).json({ message: "Invalid trip id" });
+        }
+
+        const userId = getRequestUserId(req);
+
+        if (!userId) {
+          return res.status(401).json({ message: "User ID not found" });
+        }
+
+        const preferredDates = req.body.preferredDates;
+
+        const validatedData = insertRestaurantProposalSchema.parse({
+          tripId,
+          restaurantName: req.body.restaurantName || req.body.name || 'Unknown Restaurant',
+          address: req.body.address || 'Unknown Address',
+          cuisineType: req.body.cuisineType || req.body.cuisine,
+          priceRange: req.body.priceRange || '$$',
+          rating: req.body.rating,
+          phoneNumber: req.body.phoneNumber || req.body.phone,
+          website: req.body.website,
+          reservationUrl: req.body.reservationUrl,
+          platform: req.body.platform || 'Foursquare',
+          atmosphere: req.body.atmosphere,
+          specialties: req.body.specialties,
+          dietaryOptions: req.body.dietaryOptions || [],
+          preferredMealTime: req.body.preferredMealTime || 'dinner',
+          preferredDates: preferredDates || [],
+          features: req.body.features || [],
+          status: 'active'
+        });
+
+        const proposal = await storage.createRestaurantProposal(validatedData, userId);
+        res.json(proposal);
+      } catch (error: unknown) {
+        console.error("Error creating restaurant proposal:", error);
+        if (error instanceof Error && 'name' in error && error.name === 'ZodError' && 'errors' in error) {
+          res.status(400).json({ message: "Invalid restaurant proposal data", errors: (error as any).errors });
+        } else {
+          res.status(500).json({ message: "Failed to create restaurant proposal" });
+        }
+      }
     },
   );
 
