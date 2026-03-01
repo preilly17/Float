@@ -5714,7 +5714,29 @@ export function setupRoutes(app: Express) {
       if (normalizedFlightData.arrivalTime && Number.isNaN(new Date(normalizedFlightData.arrivalTime as string).getTime())) {
         return res.status(400).json({ message: "Invalid arrival time. Use an ISO date/time string." });
       }
-      
+
+      // Auto-infer flight_type when not provided
+      if (!normalizedFlightData.flightType) {
+        let inferred = "outbound";
+        try {
+          const trip = await storage.getTripById(tripId);
+          if (trip?.startDate && trip?.endDate && normalizedFlightData.departureTime) {
+            const depDate = new Date(normalizedFlightData.departureTime as string).getTime();
+            const tripStart = new Date(trip.startDate).getTime();
+            const tripEnd = new Date(trip.endDate).getTime();
+            if (Number.isFinite(depDate) && Number.isFinite(tripStart) && Number.isFinite(tripEnd)) {
+              const dStart = Math.abs(depDate - tripStart);
+              const dEnd = Math.abs(depDate - tripEnd);
+              inferred = dStart <= dEnd ? "outbound" : "return";
+            }
+          }
+        } catch (e) {
+          // Fall through – default to outbound
+        }
+        normalizedFlightData.flightType = inferred;
+        console.info("Auto-set flight_type", { tripId, flightType: inferred });
+      }
+
       const validatedData = insertFlightSchema.parse({
         ...normalizedFlightData,
         tripId,

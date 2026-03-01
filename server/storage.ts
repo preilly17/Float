@@ -13109,7 +13109,7 @@ ${selectUserColumns("participant_user", "participant_user_")}
     const departureCode = requireString("departureCode");
     const arrivalAirport = requireString("arrivalAirport");
     const arrivalCode = requireString("arrivalCode");
-    const flightType = getValue("flightType") as string | null;
+    const flightType = (getValue("flightType") as string | null) ?? "outbound";
 
     const departureTime = parseTimestamp(
       requireValue("departureTime"),
